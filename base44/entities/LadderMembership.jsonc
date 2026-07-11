@@ -1,0 +1,106 @@
+{
+  "name": "LadderMembership",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Reference to the User"
+    },
+    "ladder_id": {
+      "type": "string",
+      "description": "Reference to the Ladder"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Cached player display name"
+    },
+    "avatar_url": {
+      "type": "string",
+      "description": "Cached player avatar URL"
+    },
+    "location": {
+      "type": "string"
+    },
+    "playing_style": {
+      "type": "string"
+    },
+    "favorite_surface": {
+      "type": "string"
+    },
+    "rank": {
+      "type": "number",
+      "description": "Current rank on the ladder (lower = better)"
+    },
+    "wins": {
+      "type": "number",
+      "default": 0
+    },
+    "losses": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "frozen_voluntary",
+        "frozen_expired",
+        "inactive",
+        "suspended"
+      ],
+      "default": "active",
+      "description": "Player status on this ladder"
+    },
+    "freeze_start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "freeze_return_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Expected return from voluntary freeze"
+    },
+    "membership_expires": {
+      "type": "string",
+      "format": "date",
+      "description": "Annual membership expiry date"
+    },
+    "stripe_payment_id": {
+      "type": "string",
+      "description": "Last Stripe payment ID"
+    },
+    "joined_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "user_id",
+    "ladder_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

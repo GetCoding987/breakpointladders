@@ -1,0 +1,58 @@
+{
+  "name": "Ladder",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the ladder"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the ladder"
+    },
+    "annual_fee": {
+      "type": "number",
+      "description": "Season membership fee in dollars",
+      "default": 25
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "challenge_window_spots": {
+      "type": "number",
+      "description": "How many spots above you can challenge",
+      "default": 10
+    },
+    "score_confirm_hours": {
+      "type": "number",
+      "description": "Hours to confirm a score",
+      "default": 24
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

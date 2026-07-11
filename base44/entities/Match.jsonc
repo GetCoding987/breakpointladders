@@ -1,0 +1,108 @@
+{
+  "name": "Match",
+  "type": "object",
+  "properties": {
+    "challenge_id": {
+      "type": "string"
+    },
+    "ladder_id": {
+      "type": "string"
+    },
+    "player1_id": {
+      "type": "string",
+      "description": "The challenger"
+    },
+    "player2_id": {
+      "type": "string",
+      "description": "The opponent"
+    },
+    "winner_id": {
+      "type": "string"
+    },
+    "score": {
+      "type": "string",
+      "description": "Score string e.g. 6-4, 7-5"
+    },
+    "played_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "submitted_by_id": {
+      "type": "string"
+    },
+    "confirmed_by_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_confirmation",
+        "confirmed",
+        "disputed",
+        "overridden"
+      ],
+      "default": "pending_confirmation"
+    },
+    "confirmation_deadline": {
+      "type": "string",
+      "description": "ISO datetime by which the other player must confirm"
+    },
+    "admin_notes": {
+      "type": "string"
+    },
+    "ranking_updated": {
+      "type": "boolean",
+      "default": false
+    },
+    "proposed_score": {
+      "type": "string",
+      "description": "Corrected score proposed during dispute resolution"
+    },
+    "proposed_winner_id": {
+      "type": "string",
+      "description": "Corrected winner proposed during dispute resolution"
+    },
+    "proposed_by_id": {
+      "type": "string",
+      "description": "User who proposed the corrected score"
+    }
+  },
+  "required": [
+    "ladder_id",
+    "player1_id",
+    "player2_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "data.player1_id": "{{user.id}}"
+        },
+        {
+          "data.player2_id": "{{user.id}}"
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "data.player1_id": "{{user.id}}"
+        },
+        {
+          "data.player2_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

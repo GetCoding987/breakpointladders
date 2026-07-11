@@ -1,0 +1,97 @@
+{
+  "name": "Challenge",
+  "type": "object",
+  "properties": {
+    "challenger_id": {
+      "type": "string",
+      "description": "User ID of the challenger"
+    },
+    "opponent_id": {
+      "type": "string",
+      "description": "User ID of the opponent"
+    },
+    "ladder_id": {
+      "type": "string",
+      "description": "Ladder this challenge is on"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined",
+        "completed",
+        "cancelled",
+        "expired"
+      ],
+      "default": "pending"
+    },
+    "challenger_rank_at_time": {
+      "type": "number"
+    },
+    "opponent_rank_at_time": {
+      "type": "number"
+    },
+    "proposed_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Currently proposed match date"
+    },
+    "proposed_time": {
+      "type": "string",
+      "description": "Currently proposed match time (HH:MM)"
+    },
+    "proposed_location": {
+      "type": "string",
+      "description": "Currently proposed match location/court"
+    },
+    "proposed_by_id": {
+      "type": "string",
+      "description": "User who proposed the current schedule"
+    },
+    "proposal_status": {
+      "type": "string",
+      "enum": [
+        "proposed",
+        "accepted",
+        "declined"
+      ],
+      "description": "Status of the current scheduling proposal"
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional message with the challenge"
+    }
+  },
+  "required": [
+    "challenger_id",
+    "opponent_id",
+    "ladder_id"
+  ],
+  "rls": {
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.opponent_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

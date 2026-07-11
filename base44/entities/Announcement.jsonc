@@ -1,0 +1,41 @@
+{
+  "name": "Announcement",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Announcement title"
+    },
+    "body": {
+      "type": "string",
+      "description": "Announcement body"
+    },
+    "ladder_id": {
+      "type": "string",
+      "description": "Ladder this announcement is for"
+    }
+  },
+  "required": [
+    "title",
+    "body",
+    "ladder_id"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
