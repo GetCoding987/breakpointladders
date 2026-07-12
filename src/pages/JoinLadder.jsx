@@ -12,6 +12,7 @@ export default function JoinLadder() {
   const [loading, setLoading] = useState(true);
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
   const [processing, setProcessing] = useState(false);
   const navigate = useNavigate();
 
@@ -71,6 +72,7 @@ export default function JoinLadder() {
     if (!selectedLadder || !user) return;
 
     setProcessing(true);
+    setPromoError('');
     try {
       const response = await callApi('/api/redeem-promo-code', {
         ladder_id: selectedLadder.id,
@@ -86,7 +88,7 @@ export default function JoinLadder() {
       }
     } catch (error) {
       console.error('Promo redemption error:', error);
-      alert(error.message || 'Invalid promo code. Please try again.');
+      setPromoError(error.message || 'Invalid promo code. Please try again.');
       setProcessing(false);
     }
   };
@@ -188,11 +190,11 @@ export default function JoinLadder() {
             type="text"
             placeholder="Promo code (optional)"
             value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
+            onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }}
             className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(217,72%,40%)]"
           />
-          {promoCode.trim() && (
-            <p className="text-xs text-green-600 mt-1">✓ Promo code will be applied at checkout</p>
+          {promoError && (
+            <p className="text-xs text-red-600 mt-1">{promoError}</p>
           )}
         </div>
 
