@@ -1,39 +1,34 @@
-**Welcome to your Base44 project** 
+**Break Point Ladders**
 
-**About**
+A tennis ladder management app: challenges, match scores, rankings, messaging, and season memberships (paid via Stripe).
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+**Stack**
 
-This project contains everything you need to run your app locally.
+- Frontend: Vite + React, deployed on Vercel
+- Backend: [Supabase](https://supabase.com) — Postgres, Auth, Realtime, Storage
+- Serverless functions (`api/`): Stripe checkout/webhook, promo codes, notification emails (Resend), cron reminders — deployed as Vercel Functions
 
-**Edit the code in your local development environment**
+**Local setup**
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
-
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+1. Clone the repo and install dependencies: `npm install`
+2. Create a `.env.local` file with:
 
 ```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
-Run the app: `npm run dev`
+3. Run the app: `npm run dev`
 
-**Publish your changes**
+**Serverless functions**
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+The `api/` functions need these environment variables (set in Vercel project settings, not `.env.local`):
 
-**Docs & Support**
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PROMO_CODES`, `ALLOWED_CHECKOUT_ORIGINS`
+- `RESEND_API_KEY`, `RESEND_FROM_ADDRESS`, `APP_BASE_URL`
+- `CRON_SECRET`
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+**Database schema**
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Schema and RLS policies live in `supabase/migrations/`. Apply them via the Supabase CLI or dashboard SQL editor.

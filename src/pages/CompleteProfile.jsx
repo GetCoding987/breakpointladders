@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,7 @@ export default function CompleteProfile() {
 
   useEffect(() => {
     const init = async () => {
-      const u = await base44.auth.me();
+      const u = await getCurrentUser();
       setUser(u);
       let fn = u.first_name || '';
       let ln = u.last_name || '';
@@ -58,7 +58,7 @@ export default function CompleteProfile() {
     try {
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
       const location = `${city.trim()}, ${state.trim()}`;
-      await base44.auth.updateMe({
+      await supabase.from('profiles').update({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         gender,
@@ -66,16 +66,16 @@ export default function CompleteProfile() {
         city: city.trim(),
         state: state.trim(),
         phone: phone.trim(),
-      });
+      }).eq('id', user.id);
       // Sync membership if exists
-      const mems = await base44.entities.LadderMembership.filter({ user_id: user.id });
-      if (mems.length > 0) {
-        await base44.entities.LadderMembership.update(mems[0].id, {
+      const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: user.id });
+      if (mems?.length > 0) {
+        await supabase.from('ladder_memberships').update({
           display_name: fullName,
           location,
           city: city.trim(),
           state: state.trim(),
-        });
+        }).eq('id', mems[0].id);
       }
       await checkUserAuth();
       navigate('/');

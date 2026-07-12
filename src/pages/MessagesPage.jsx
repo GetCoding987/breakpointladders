@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { Send, Search, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,17 +44,18 @@ export default function MessagesPage() {
 
   // Real-time: update accepted challenges when a proposal/acceptance changes
   useEffect(() => {
-    const unsubscribe = base44.entities.Challenge.subscribe((event) => {
-      if (event.type === 'update') {
-        const updated = event.data;
+    const channel = supabase
+      .channel('messages-page-challenges')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'challenges' }, (payload) => {
+        const updated = payload.new;
         setAcceptedChallenges(prev => {
           const exists = prev.find(c => c.id === updated.id);
           if (!exists) return prev;
           return prev.map(c => c.id === updated.id ? { ...c, ...updated } : c);
         });
-      }
-    });
-    return unsubscribe;
+      })
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
   useEffect(() => {
@@ -65,18 +66,18 @@ export default function MessagesPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
     // Fetch messages and own memberships in parallel
-    const [sent, received, myMems] = await Promise.all([
-      withRetry(() => base44.entities.Message.filter({ sender_id: u.id })),
-      withRetry(() => base44.entities.Message.filter({ recipient_id: u.id })),
-      withRetry(() => base44.entities.LadderMembership.filter({ user_id: u.id })),
+    const [{ data: sent }, { data: received }, { data: myMems }] = await Promise.all([
+      withRetry(() => supabase.from('messages').select('*').match({ sender_id: u.id })),
+      withRetry(() => supabase.from('messages').select('*').match({ recipient_id: u.id })),
+      withRetry(() => supabase.from('ladder_memberships').select('*').match({ user_id: u.id })),
     ]);
 
     // Build thread map
-    const allMsgs = [...sent, ...received];
+    const allMsgs = [...(sent || []), ...(received || [])];
     const threadMap = {};
     allMsgs.forEach(msg => {
       const otherId = msg.sender_id === u.id ? msg.recipient_id : msg.sender_id;
@@ -93,28 +94,28 @@ export default function MessagesPage() {
 
     setThreads(threadList);
 
-    if (myMems.length > 0) {
+    if (myMems?.length > 0) {
       const ladderId = myMems[0].ladder_id;
 
       // Fetch ladder members, matches, and challenges in parallel
-      const [allMems, allMatches, allChallenges] = await Promise.all([
-        withRetry(() => base44.entities.LadderMembership.filter({ ladder_id: ladderId })),
-        withRetry(() => base44.entities.Match.filter({ ladder_id: ladderId })),
-        withRetry(() => base44.entities.Challenge.filter({ ladder_id: ladderId })),
+      const [{ data: allMems }, { data: allMatches }, { data: allChallenges }] = await Promise.all([
+        withRetry(() => supabase.from('ladder_memberships').select('*').match({ ladder_id: ladderId })),
+        withRetry(() => supabase.from('matches').select('*').match({ ladder_id: ladderId })),
+        withRetry(() => supabase.from('challenges').select('*').match({ ladder_id: ladderId })),
       ]);
 
       const map = {};
-      allMems.forEach(m => {
+      (allMems || []).forEach(m => {
         map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location };
       });
       map[u.id] = u;
       setAllUsers(map);
 
-      setDisputedMatches(allMatches.filter(m =>
+      setDisputedMatches((allMatches || []).filter(m =>
         (m.player1_id === u.id || m.player2_id === u.id) && m.status === 'disputed'
       ));
 
-      setAcceptedChallenges(allChallenges.filter(c =>
+      setAcceptedChallenges((allChallenges || []).filter(c =>
         (c.challenger_id === u.id || c.opponent_id === u.id) && c.status === 'accepted'
       ));
     }
@@ -131,7 +132,7 @@ export default function MessagesPage() {
     if (unread.length === 0) return;
 
     for (const msg of unread) {
-      await base44.entities.Message.update(msg.id, { read: true });
+      await supabase.from('messages').update({ read: true }).eq('id', msg.id);
     }
 
     setThreads(prev => prev.map(t =>
@@ -145,20 +146,19 @@ export default function MessagesPage() {
     if (!newMessage.trim() || !selectedThread) return;
     setSending(true);
 
-    const msg = await base44.entities.Message.create({
+    const { data: msg } = await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: selectedThread.otherId,
       content: newMessage.trim(),
       read: false,
       thread_id: [user.id, selectedThread.otherId].sort().join('_'),
-    });
+    }).select().single();
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: selectedThread.otherId,
       type: 'new_message',
       title: `New message from ${getDisplayName(user)}`,
       body: newMessage.trim().slice(0, 100),
-      read: false,
     });
 
     setNewMessage('');
@@ -244,13 +244,13 @@ export default function MessagesPage() {
     const otherId = selectedThread.otherId;
     const threadId = [user.id, otherId].sort().join('_');
 
-    await base44.entities.Match.update(activeDisputeMatch.id, {
+    await supabase.from('matches').update({
       proposed_score: score,
       proposed_winner_id: winner_id,
       proposed_by_id: user.id,
-    });
+    }).eq('id', activeDisputeMatch.id);
 
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content: `I propose the corrected score: ${score} (Winner: ${getDisplayName(allUsers[winner_id])}). Please review and accept if you agree.`,
@@ -259,12 +259,11 @@ export default function MessagesPage() {
       match_id: activeDisputeMatch.id,
     });
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: otherId,
       type: 'score_submitted',
       title: 'Corrected Score Proposed',
       body: `${getDisplayName(user)} proposed a corrected score for your disputed match. Review and accept if you agree.`,
-      read: false,
       related_id: activeDisputeMatch.id,
     });
 
@@ -277,29 +276,28 @@ export default function MessagesPage() {
     const otherId = selectedThread.otherId;
     const threadId = [user.id, otherId].sort().join('_');
 
-    await base44.entities.Match.update(match.id, {
+    await supabase.from('matches').update({
       status: 'confirmed',
       score: match.proposed_score,
       winner_id: match.proposed_winner_id,
       confirmed_by_id: user.id,
       ranking_updated: true,
-    });
+    }).eq('id', match.id);
 
     await updateRankingsForMatch(
       { ...match, winner_id: match.proposed_winner_id },
       match.ladder_id
     );
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: otherId,
       type: 'score_confirmed',
       title: 'Score Confirmed',
       body: 'The corrected score has been accepted. Rankings have been updated.',
-      read: false,
       related_id: match.id,
     });
 
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content: `I've accepted the corrected score: ${match.proposed_score}. The match is now confirmed.`,
@@ -318,11 +316,11 @@ export default function MessagesPage() {
     const otherId = selectedThread.otherId;
     const threadId = [user.id, otherId].sort().join('_');
 
-    await base44.entities.Match.update(match.id, {
+    await supabase.from('matches').update({
       admin_notes: `Escalated to admin by ${getDisplayName(user)}. Players could not agree on the correct score. Original: ${match.score}, Proposed: ${match.proposed_score || 'N/A'}`,
-    });
+    }).eq('id', match.id);
 
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content: `I've notified the admin to help resolve our score dispute. An admin will review and override the score if needed.`,
@@ -339,17 +337,17 @@ export default function MessagesPage() {
     const otherId = selectedThread.otherId;
     const threadId = [user.id, otherId].sort().join('_');
 
-    await base44.entities.Challenge.update(activeScheduleChallenge.id, {
+    await supabase.from('challenges').update({
       proposed_date: date,
       proposed_time: time,
       proposed_location: location,
       proposed_by_id: user.id,
       proposal_status: 'proposed',
-    });
+    }).eq('id', activeScheduleChallenge.id);
 
     const content = `I propose playing on ${date} at ${time}${location ? ' at ' + location : ''}. Please accept or propose a different time.`;
 
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content,
@@ -357,12 +355,11 @@ export default function MessagesPage() {
       thread_id: threadId,
     });
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: otherId,
       type: 'challenge_accepted',
       title: 'Match Time Proposed',
       body: `${getDisplayName(user)} proposed a match time: ${date} at ${time}${location ? ' at ' + location : ''}`,
-      read: false,
       related_id: activeScheduleChallenge.id,
     });
 
@@ -380,13 +377,13 @@ export default function MessagesPage() {
     const threadId = [user.id, otherId].sort().join('_');
     const c = activeScheduleChallenge;
 
-    await base44.entities.Challenge.update(c.id, {
+    await supabase.from('challenges').update({
       proposal_status: 'accepted',
-    });
+    }).eq('id', c.id);
 
     const content = `I accept the proposed match time: ${c.proposed_date} at ${c.proposed_time}${c.proposed_location ? ' at ' + c.proposed_location : ''}. See you there!`;
 
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content,
@@ -394,12 +391,11 @@ export default function MessagesPage() {
       thread_id: threadId,
     });
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: otherId,
       type: 'challenge_accepted',
       title: 'Match Time Confirmed',
       body: `${getDisplayName(user)} accepted the proposed match time: ${c.proposed_date} at ${c.proposed_time}${c.proposed_location ? ' at ' + c.proposed_location : ''}`,
-      read: false,
       related_id: c.id,
     });
 

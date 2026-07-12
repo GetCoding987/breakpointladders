@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { Trophy, Activity, TrendingUp, Swords, Clock, CheckCircle, AlertCircle, Snowflake } from 'lucide-react';
 import StatCard from '@/components/StatCard';
 import PlayerAvatar from '@/components/PlayerAvatar';
@@ -28,22 +28,22 @@ export default function Dashboard() {
 
   const loadDashboard = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
-    const memberships = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (memberships.length === 0) {
+    const { data: memberships } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (!memberships || memberships.length === 0) {
       setLoading(false);
       return;
     }
     const mem = memberships[0];
     setMembership(mem);
 
-    const ladders = await base44.entities.Ladder.filter({ id: mem.ladder_id });
-    if (ladders.length > 0) setLadder(ladders[0]);
+    const { data: ladders } = await supabase.from('ladders').select('*').match({ id: mem.ladder_id });
+    if (ladders?.length > 0) setLadder(ladders[0]);
 
     // Top 10 on this ladder
-    const allMemberships = await base44.entities.LadderMembership.filter({ ladder_id: mem.ladder_id });
+    const { data: allMemberships } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: mem.ladder_id });
     const sorted = [...allMemberships].sort((a, b) => (a.rank || 999) - (b.rank || 999)).slice(0, 10);
 
     // Build user map from memberships (User.list() is admin-only, use memberships instead)
@@ -70,26 +70,26 @@ export default function Dashboard() {
     setTopPlayers(sorted);
 
     // Pending challenges - only show challenges awaiting response (not accepted ones)
-    const challenges = await base44.entities.Challenge.filter({ ladder_id: mem.ladder_id });
-    const pending = challenges.filter((c) =>
+    const { data: challenges } = await supabase.from('challenges').select('*').match({ ladder_id: mem.ladder_id });
+    const pending = (challenges || []).filter((c) =>
     (c.opponent_id === u.id && c.status === 'pending')
     );
     setPendingChallenges(pending.slice(0, 3));
 
     // Recent matches
-    const matches = await base44.entities.Match.filter({ ladder_id: mem.ladder_id });
-    const myMatches = matches.filter((m) =>
+    const { data: matches } = await supabase.from('matches').select('*').match({ ladder_id: mem.ladder_id });
+    const myMatches = (matches || []).filter((m) =>
     m.player1_id === u.id || m.player2_id === u.id
     ).sort((a, b) => new Date(b.played_date) - new Date(a.played_date)).slice(0, 3);
     setRecentMatches(myMatches);
 
     // Recent messages
-    const msgs = await base44.entities.Message.filter({ recipient_id: u.id });
-    setMessages(msgs.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3));
+    const { data: msgs } = await supabase.from('messages').select('*').match({ recipient_id: u.id });
+    setMessages((msgs || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3));
 
     // Announcements
-    const anns = await base44.entities.Announcement.filter({ ladder_id: mem.ladder_id });
-    setAnnouncements(anns.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3));
+    const { data: anns } = await supabase.from('announcements').select('*').match({ ladder_id: mem.ladder_id });
+    setAnnouncements((anns || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3));
 
     setLoading(false);
   };

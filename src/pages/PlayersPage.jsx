@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { Search, MessageSquare, Swords } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,13 +21,13 @@ export default function PlayersPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
-    const mems = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (mems.length > 0) {
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (mems?.length > 0) {
       setMyMembership(mems[0]);
-      const allMems = await base44.entities.LadderMembership.filter({ ladder_id: mems[0].ladder_id });
+      const { data: allMems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: mems[0].ladder_id });
       setMemberships(allMems.sort((a, b) => (a.rank || 999) - (b.rank || 999)));
       // Build user map from memberships (no admin User.list() needed)
       const map = {};

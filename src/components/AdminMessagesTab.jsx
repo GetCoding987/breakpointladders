@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase, callApi } from '@/lib/supabaseClient';
 import { Megaphone, Send, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,8 +36,8 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   }, [user, ladderId]);
 
   const load = async () => {
-    const myMems = await base44.entities.LadderMembership.filter({ user_id: user.id });
-    if (myMems.length === 0) return;
+    const { data: myMems } = await supabase.from('ladder_memberships').select('*').match({ user_id: user.id });
+    if (!myMems || myMems.length === 0) return;
     const lid = myMems[0].ladder_id;
     setLadderId(lid);
     loadData(lid);
@@ -45,17 +45,17 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
 
   const loadData = async (lid = ladderId) => {
     if (!lid) return;
-    const allMems = await base44.entities.LadderMembership.filter({ ladder_id: lid });
-    setMembers(allMems.filter(m => m.status === 'active' && m.user_id !== user.id));
+    const { data: allMems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: lid });
+    setMembers((allMems || []).filter(m => m.status === 'active' && m.user_id !== user.id));
 
-    const anns = await base44.entities.Announcement.filter({ ladder_id: lid });
-    setAnnouncements(anns.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    const { data: anns } = await supabase.from('announcements').select('*').match({ ladder_id: lid });
+    setAnnouncements((anns || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
   };
 
   const postAnnouncement = async () => {
     if (!annTitle.trim() || !annBody.trim() || !ladderId) return;
     setPostingAnn(true);
-    await base44.entities.Announcement.create({
+    await supabase.from('announcements').insert({
       title: annTitle.trim(),
       body: annBody.trim(),
       ladder_id: ladderId,
@@ -75,10 +75,10 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const saveEdit = async () => {
     if (!editTitle.trim() || !editBody.trim()) return;
     setSavingEdit(true);
-    await base44.entities.Announcement.update(editingAnn.id, {
+    await supabase.from('announcements').update({
       title: editTitle.trim(),
       body: editBody.trim(),
-    });
+    }).eq('id', editingAnn.id);
     setSavingEdit(false);
     setEditingAnn(null);
     setEditTitle('');
@@ -88,7 +88,7 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
 
   const deleteAnnouncement = async (ann) => {
     if (!confirm('Delete this announcement?')) return;
-    await base44.entities.Announcement.delete(ann.id);
+    await supabase.from('announcements').delete().eq('id', ann.id);
     loadData();
   };
 
@@ -113,12 +113,11 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
       type: 'new_message',
       title: 'Message from Admin',
       body: msgContent.trim().slice(0, 100),
-      read: false,
     }));
 
     try {
-      await base44.entities.Message.bulkCreate(messages);
-      await base44.entities.Notification.bulkCreate(notifs);
+      await supabase.from('messages').insert(messages);
+      await callApi('/api/notify', { notifications: notifs });
     } catch (err) {
       console.warn('Admin message failed:', err?.message);
     }

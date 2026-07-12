@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { Activity, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,27 +50,27 @@ export default function MatchesPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
-    const mems = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (mems.length === 0) { setLoading(false); return; }
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (!mems || mems.length === 0) { setLoading(false); return; }
     const mem = mems[0];
     setMyMembership(mem);
 
-    const allMatches = await base44.entities.Match.filter({ ladder_id: mem.ladder_id });
-    const mine = allMatches.filter(m => m.player1_id === u.id || m.player2_id === u.id);
+    const { data: allMatches } = await supabase.from('matches').select('*').match({ ladder_id: mem.ladder_id });
+    const mine = (allMatches || []).filter(m => m.player1_id === u.id || m.player2_id === u.id);
     setMatches(mine.sort((a, b) => new Date(b.played_date || b.created_date) - new Date(a.played_date || a.created_date)));
 
-    const allChallenges = await base44.entities.Challenge.filter({ ladder_id: mem.ladder_id });
-    const accepted = allChallenges.filter(c =>
+    const { data: allChallenges } = await supabase.from('challenges').select('*').match({ ladder_id: mem.ladder_id });
+    const accepted = (allChallenges || []).filter(c =>
       c.status === 'accepted' && (c.challenger_id === u.id || c.opponent_id === u.id)
     );
     setChallenges(accepted);
 
-    const allMems = await base44.entities.LadderMembership.filter({ ladder_id: mem.ladder_id });
+    const { data: allMems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: mem.ladder_id });
     const map = {};
-    allMems.forEach(m => { map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, city: m.city, state: m.state }; });
+    (allMems || []).forEach(m => { map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, city: m.city, state: m.state }; });
     map[u.id] = u;
     setAllUsers(map);
 
@@ -84,46 +84,44 @@ export default function MatchesPage() {
       );
       if (expired.length > 0) {
         for (const m of expired) {
-          await base44.entities.Match.update(m.id, {
+          await supabase.from('matches').update({
             status: 'confirmed',
             confirmed_by_id: m.submitted_by_id,
             ranking_updated: true,
-          });
-          const challengerMem = allMems.find(mem => mem.user_id === m.player1_id);
-          const opponentMem = allMems.find(mem => mem.user_id === m.player2_id);
+          }).eq('id', m.id);
+          const challengerMem = (allMems || []).find(mem => mem.user_id === m.player1_id);
+          const opponentMem = (allMems || []).find(mem => mem.user_id === m.player2_id);
           if (m.winner_id === m.player1_id && challengerMem && opponentMem) {
             const opponentOldRank = opponentMem.rank;
-            await base44.entities.LadderMembership.update(challengerMem.id, {
-              rank: opponentOldRank,
-              wins: (challengerMem.wins || 0) + 1,
-            });
-            await base44.entities.LadderMembership.update(opponentMem.id, {
-              rank: opponentOldRank + 1,
-              losses: (opponentMem.losses || 0) + 1,
+            await supabase.rpc('update_ladder_ranks', {
+              p_ladder_id: mem.ladder_id,
+              updates: [
+                { id: challengerMem.id, rank: opponentOldRank, wins: (challengerMem.wins || 0) + 1 },
+                { id: opponentMem.id, rank: opponentOldRank + 1, losses: (opponentMem.losses || 0) + 1 },
+              ],
             });
           } else if (m.winner_id === m.player2_id && opponentMem && challengerMem) {
-            await base44.entities.LadderMembership.update(challengerMem.id, {
-              losses: (challengerMem.losses || 0) + 1,
-            });
-            await base44.entities.LadderMembership.update(opponentMem.id, {
-              wins: (opponentMem.wins || 0) + 1,
+            await supabase.rpc('update_ladder_ranks', {
+              p_ladder_id: mem.ladder_id,
+              updates: [
+                { id: challengerMem.id, losses: (challengerMem.losses || 0) + 1 },
+                { id: opponentMem.id, wins: (opponentMem.wins || 0) + 1 },
+              ],
             });
           }
-          await base44.entities.Notification.create({
+          await callApi('/api/notify', {
             user_id: m.submitted_by_id,
             type: 'score_confirmed',
             title: 'Score Auto-Confirmed',
             body: 'Your match result has been auto-confirmed (opponent did not respond within 48 hours). Rankings have been updated.',
-            read: false,
             related_id: m.id,
           });
           const otherId = m.player1_id === m.submitted_by_id ? m.player2_id : m.player1_id;
-          await base44.entities.Notification.create({
+          await callApi('/api/notify', {
             user_id: otherId,
             type: 'score_confirmed',
             title: 'Score Auto-Confirmed',
             body: 'A match result has been auto-confirmed (you did not respond within 48 hours). Rankings have been updated.',
-            read: false,
             related_id: m.id,
           });
         }
@@ -148,7 +146,7 @@ export default function MatchesPage() {
     const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
     const challenge = challenges.find(c => c.id === submitForm.challenge_id);
 
-    const match = await base44.entities.Match.create({
+    const { data: match } = await supabase.from('matches').insert({
       challenge_id: submitForm.challenge_id,
       ladder_id: myMembership.ladder_id,
       player1_id: challenge?.challenger_id || user.id,
@@ -160,24 +158,23 @@ export default function MatchesPage() {
       status: 'pending_confirmation',
       confirmation_deadline: deadline,
       ranking_updated: false,
-    });
+    }).select().single();
 
     const otherId = challenge
       ? (challenge.challenger_id === user.id ? challenge.opponent_id : challenge.challenger_id)
       : '';
     if (otherId) {
-      await base44.entities.Notification.create({
+      await callApi('/api/notify', {
         user_id: otherId,
         type: 'score_submitted',
         title: 'Score Submitted',
         body: `${getDisplayName(user)} submitted the match result. Please confirm within 24 hours.`,
-        read: false,
         related_id: match.id,
       });
     }
 
     if (submitForm.challenge_id) {
-      await base44.entities.Challenge.update(submitForm.challenge_id, { status: 'completed' });
+      await supabase.from('challenges').update({ status: 'completed' }).eq('id', submitForm.challenge_id);
     }
 
     setShowSubmit(false);
@@ -188,41 +185,40 @@ export default function MatchesPage() {
   };
 
   const confirmScore = async (match) => {
-    await base44.entities.Match.update(match.id, {
+    await supabase.from('matches').update({
       status: 'confirmed',
       confirmed_by_id: user.id,
       ranking_updated: true,
-    });
+    }).eq('id', match.id);
 
-    const allMems = await base44.entities.LadderMembership.filter({ ladder_id: myMembership.ladder_id });
-    const challengerMem = allMems.find(m => m.user_id === match.player1_id);
-    const opponentMem = allMems.find(m => m.user_id === match.player2_id);
+    const { data: allMems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: myMembership.ladder_id });
+    const challengerMem = (allMems || []).find(m => m.user_id === match.player1_id);
+    const opponentMem = (allMems || []).find(m => m.user_id === match.player2_id);
 
     if (match.winner_id === match.player1_id && challengerMem && opponentMem) {
       const opponentOldRank = opponentMem.rank;
-      await base44.entities.LadderMembership.update(challengerMem.id, {
-        rank: opponentOldRank,
-        wins: (challengerMem.wins || 0) + 1,
-      });
-      await base44.entities.LadderMembership.update(opponentMem.id, {
-        rank: opponentOldRank + 1,
-        losses: (opponentMem.losses || 0) + 1,
+      await supabase.rpc('update_ladder_ranks', {
+        p_ladder_id: myMembership.ladder_id,
+        updates: [
+          { id: challengerMem.id, rank: opponentOldRank, wins: (challengerMem.wins || 0) + 1 },
+          { id: opponentMem.id, rank: opponentOldRank + 1, losses: (opponentMem.losses || 0) + 1 },
+        ],
       });
     } else if (match.winner_id === match.player2_id && opponentMem && challengerMem) {
-      await base44.entities.LadderMembership.update(challengerMem.id, {
-        losses: (challengerMem.losses || 0) + 1,
-      });
-      await base44.entities.LadderMembership.update(opponentMem.id, {
-        wins: (opponentMem.wins || 0) + 1,
+      await supabase.rpc('update_ladder_ranks', {
+        p_ladder_id: myMembership.ladder_id,
+        updates: [
+          { id: challengerMem.id, losses: (challengerMem.losses || 0) + 1 },
+          { id: opponentMem.id, wins: (opponentMem.wins || 0) + 1 },
+        ],
       });
     }
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: match.submitted_by_id,
       type: 'score_confirmed',
       title: 'Score Confirmed',
       body: 'Your match result has been confirmed. Rankings have been updated.',
-      read: false,
       related_id: match.id,
     });
 
@@ -241,13 +237,13 @@ export default function MatchesPage() {
     const otherId = disputeTarget.player1_id === user.id ? disputeTarget.player2_id : disputeTarget.player1_id;
     const threadId = [user.id, otherId].sort().join('_');
 
-    await base44.entities.Match.update(disputeTarget.id, {
+    await supabase.from('matches').update({
       status: 'disputed',
       admin_notes: `Dispute reason: ${disputeReason.trim()}`,
-    });
+    }).eq('id', disputeTarget.id);
 
     // Create initial dispute message in the thread
-    await base44.entities.Message.create({
+    await supabase.from('messages').insert({
       sender_id: user.id,
       recipient_id: otherId,
       content: `I'm disputing the score for our match (${disputeTarget.score}). Reason: ${disputeReason.trim()}\n\nLet's discuss and agree on the correct score, or notify an admin if we can't agree.`,
@@ -257,12 +253,11 @@ export default function MatchesPage() {
     });
 
     // Notify the other player
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: otherId,
       type: 'score_disputed',
       title: 'Score Disputed',
       body: `${getDisplayName(user)} disputed the match score. Please discuss and agree on the correct score.`,
-      read: false,
       related_id: disputeTarget.id,
     });
 

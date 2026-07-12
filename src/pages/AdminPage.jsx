@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { Settings, Trophy, Users, Activity, Plus, Edit, Trash2, AlertCircle, Send, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,14 +38,14 @@ export default function AdminPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
     if (u.role !== 'admin') { setLoading(false); return; }
 
-    const allLadders = await base44.entities.Ladder.list();
-    setLadders(allLadders);
-    if (allLadders.length > 0 && !selectedLadder) {
+    const { data: allLadders } = await supabase.from('ladders').select('*');
+    setLadders(allLadders || []);
+    if (allLadders?.length > 0 && !selectedLadder) {
       loadLadderData(allLadders[0]);
     }
 
@@ -54,28 +54,28 @@ export default function AdminPage() {
 
   const loadLadderData = async (ladder) => {
     setSelectedLadder(ladder);
-    const mems = await base44.entities.LadderMembership.filter({ ladder_id: ladder.id });
-    setMemberships(mems.sort((a, b) => (a.rank || 999) - (b.rank || 999)));
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: ladder.id });
+    setMemberships((mems || []).sort((a, b) => (a.rank || 999) - (b.rank || 999)));
 
     // Build user map from memberships
     const map = {};
-    mems.forEach(m => {
+    (mems || []).forEach(m => {
       map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, email: m.user_id };
     });
     setAllUsers(map);
 
-    const allMatches = await base44.entities.Match.filter({ ladder_id: ladder.id });
-    setMatches(allMatches.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    const { data: allMatches } = await supabase.from('matches').select('*').match({ ladder_id: ladder.id });
+    setMatches((allMatches || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
 
-    const allChallenges = await base44.entities.Challenge.filter({ ladder_id: ladder.id });
-    setChallenges(allChallenges.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    const { data: allChallenges } = await supabase.from('challenges').select('*').match({ ladder_id: ladder.id });
+    setChallenges((allChallenges || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
   };
 
   const saveLadder = async () => {
     if (editingLadder) {
-      await base44.entities.Ladder.update(editingLadder.id, ladderForm);
+      await supabase.from('ladders').update(ladderForm).eq('id', editingLadder.id);
     } else {
-      await base44.entities.Ladder.create({ ...ladderForm, status: 'active' });
+      await supabase.from('ladders').insert({ ...ladderForm, status: 'active' });
     }
     setShowLadderForm(false);
     setEditingLadder(null);
@@ -84,17 +84,17 @@ export default function AdminPage() {
   };
 
   const archiveLadder = async (ladder) => {
-    await base44.entities.Ladder.update(ladder.id, { status: 'archived' });
+    await supabase.from('ladders').update({ status: 'archived' }).eq('id', ladder.id);
     load();
   };
 
   const updateMemberStatus = async (mem, status) => {
-    await base44.entities.LadderMembership.update(mem.id, { status });
+    await supabase.from('ladder_memberships').update({ status }).eq('id', mem.id);
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
   const updateMemberRank = async (mem, newRank) => {
-    await base44.entities.LadderMembership.update(mem.id, { rank: parseInt(newRank) });
+    await supabase.from('ladder_memberships').update({ rank: parseInt(newRank) }).eq('id', mem.id);
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
@@ -103,13 +103,13 @@ export default function AdminPage() {
     setRemoving(true);
     const userId = removeTarget.user_id;
     try {
-      await base44.entities.LadderMembership.delete(removeTarget.id);
-      await base44.entities.Message.deleteMany({ sender_id: userId });
-      await base44.entities.Message.deleteMany({ recipient_id: userId });
-      await base44.entities.Challenge.deleteMany({ challenger_id: userId });
-      await base44.entities.Challenge.deleteMany({ opponent_id: userId });
-      await base44.entities.Match.deleteMany({ player1_id: userId });
-      await base44.entities.Match.deleteMany({ player2_id: userId });
+      await supabase.from('ladder_memberships').delete().eq('id', removeTarget.id);
+      await supabase.from('messages').delete().match({ sender_id: userId });
+      await supabase.from('messages').delete().match({ recipient_id: userId });
+      await supabase.from('challenges').delete().match({ challenger_id: userId });
+      await supabase.from('challenges').delete().match({ opponent_id: userId });
+      await supabase.from('matches').delete().match({ player1_id: userId });
+      await supabase.from('matches').delete().match({ player2_id: userId });
     } catch (err) {
       console.warn('Remove player failed:', err?.message);
     }
@@ -123,20 +123,17 @@ export default function AdminPage() {
     setResetting(true);
     try {
       // Delete all matches and challenges for this ladder
-      await base44.entities.Match.deleteMany({ ladder_id: selectedLadder.id });
-      await base44.entities.Challenge.deleteMany({ ladder_id: selectedLadder.id });
+      await supabase.from('matches').delete().match({ ladder_id: selectedLadder.id });
+      await supabase.from('challenges').delete().match({ ladder_id: selectedLadder.id });
 
       // Reset wins/losses on all memberships — keep ranks/positions intact
-      await base44.entities.LadderMembership.updateMany(
-        { ladder_id: selectedLadder.id },
-        { $set: { wins: 0, losses: 0 } }
-      );
+      await supabase.from('ladder_memberships').update({ wins: 0, losses: 0 }).match({ ladder_id: selectedLadder.id });
 
       // Delete all messages between ladder members
       const memberIds = memberships.map(m => m.user_id);
       for (const userId of memberIds) {
-        await base44.entities.Message.deleteMany({ sender_id: userId });
-        await base44.entities.Message.deleteMany({ recipient_id: userId });
+        await supabase.from('messages').delete().match({ sender_id: userId });
+        await supabase.from('messages').delete().match({ recipient_id: userId });
       }
     } catch (err) {
       console.warn('Season reset failed:', err?.message);
@@ -147,11 +144,11 @@ export default function AdminPage() {
   };
 
   const overrideMatch = async (match, winnerId) => {
-    await base44.entities.Match.update(match.id, {
+    await supabase.from('matches').update({
       winner_id: winnerId,
       status: 'overridden',
       ranking_updated: false,
-    });
+    }).eq('id', match.id);
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
@@ -171,11 +168,10 @@ export default function AdminPage() {
       type: 'new_message',
       title: 'Broadcast Message',
       body: `${getDisplayName(user)} sent a broadcast message to all ladder members`,
-      read: false,
     }));
     try {
-      await base44.entities.Message.bulkCreate(messages);
-      await base44.entities.Notification.bulkCreate(notifs);
+      await supabase.from('messages').insert(messages);
+      await callApi('/api/notify', { notifications: notifs });
     } catch (err) {
       console.warn('Broadcast failed:', err?.message);
     }

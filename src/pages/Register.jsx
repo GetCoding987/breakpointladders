@@ -1,16 +1,14 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2, User, MapPin, Phone } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { UserPlus, Mail, Lock, Loader2, User, Phone, CheckCircle2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
-import { toast } from "@/components/ui/use-toast";
 
 export default function Register() {
   const [firstName, setFirstName] = useState("");
@@ -24,8 +22,7 @@ export default function Register() {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
+  const [confirmationSent, setConfirmationSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,8 +49,24 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
-      setShowOtp(true);
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/complete-profile`,
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            gender,
+            location: `${city.trim()}, ${state.trim()}`,
+            city: city.trim(),
+            state: state.trim(),
+            phone: phone.trim(),
+          },
+        },
+      });
+      if (signUpError) throw signUpError;
+      setConfirmationSent(true);
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
@@ -61,98 +74,22 @@ export default function Register() {
     }
   };
 
-  const handleVerify = async () => {
-    setError("");
-    setLoading(true);
-    try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-        // Save name and profile details after token is set
-         await base44.auth.updateMe({
-           first_name: firstName.trim(),
-           last_name: lastName.trim(),
-           gender: gender,
-           location: `${city.trim()}, ${state.trim()}`,
-           city: city.trim(),
-           state: state.trim(),
-           phone: phone.trim(),
-         });
-      }
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid verification code");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setError("");
-    try {
-      await base44.auth.resendOtp(email);
-      toast({
-        title: "Code sent",
-        description: "Check your email for the new code.",
-      });
-    } catch (err) {
-      setError(err.message || "Failed to resend code");
-    }
-  };
-
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
+    });
   };
 
-  if (showOtp) {
+  if (confirmationSent) {
     return (
       <AuthLayout
-        icon={Mail}
-        title="Verify your email"
-        subtitle={`We sent a code to ${email}`}
+        icon={CheckCircle2}
+        title="Check your email"
+        subtitle={`We sent a confirmation link to ${email}`}
       >
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-            {error}
-          </div>
-        )}
-        <div className="flex justify-center mb-6">
-          <InputOTP
-            maxLength={6}
-            value={otpCode}
-            onChange={setOtpCode}
-            autoFocus
-            autoComplete="one-time-code"
-          >
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
-        <Button
-          className="w-full h-12 font-medium"
-          onClick={handleVerify}
-          disabled={loading || otpCode.length < 6}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            "Verify"
-          )}
-        </Button>
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          Didn't receive the code?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
-          </button>
+        <p className="text-sm text-foreground text-center">
+          Click the link in the email to confirm your account. You'll be signed in automatically.
         </p>
       </AuthLayout>
     );

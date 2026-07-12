@@ -1,9 +1,9 @@
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function updateRankingsForMatch(match, ladderId) {
-  const allMems = await base44.entities.LadderMembership.filter({ ladder_id: ladderId });
-  const challengerMem = allMems.find(m => m.user_id === match.player1_id);
-  const opponentMem = allMems.find(m => m.user_id === match.player2_id);
+  const { data: allMems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: ladderId });
+  const challengerMem = (allMems || []).find(m => m.user_id === match.player1_id);
+  const opponentMem = (allMems || []).find(m => m.user_id === match.player2_id);
 
   if (match.winner_id === match.player1_id && challengerMem && opponentMem) {
     const challengerOldRank = challengerMem.rank;
@@ -22,22 +22,24 @@ export async function updateRankingsForMatch(match, ladderId) {
           updates.push({ id: mem.id, rank: mem.rank + 1 });
         }
       }
-      await base44.entities.LadderMembership.bulkUpdate(updates);
+      await supabase.rpc('update_ladder_ranks', { p_ladder_id: ladderId, updates });
     } else {
       // Challenger already above opponent — no rank change, just W/L
-      await base44.entities.LadderMembership.update(challengerMem.id, {
-        wins: (challengerMem.wins || 0) + 1,
-      });
-      await base44.entities.LadderMembership.update(opponentMem.id, {
-        losses: (opponentMem.losses || 0) + 1,
+      await supabase.rpc('update_ladder_ranks', {
+        p_ladder_id: ladderId,
+        updates: [
+          { id: challengerMem.id, wins: (challengerMem.wins || 0) + 1 },
+          { id: opponentMem.id, losses: (opponentMem.losses || 0) + 1 },
+        ],
       });
     }
   } else if (match.winner_id === match.player2_id && opponentMem && challengerMem) {
-    await base44.entities.LadderMembership.update(challengerMem.id, {
-      losses: (challengerMem.losses || 0) + 1,
-    });
-    await base44.entities.LadderMembership.update(opponentMem.id, {
-      wins: (opponentMem.wins || 0) + 1,
+    await supabase.rpc('update_ladder_ranks', {
+      p_ladder_id: ladderId,
+      updates: [
+        { id: challengerMem.id, losses: (challengerMem.losses || 0) + 1 },
+        { id: opponentMem.id, wins: (opponentMem.wins || 0) + 1 },
+      ],
     });
   }
 }

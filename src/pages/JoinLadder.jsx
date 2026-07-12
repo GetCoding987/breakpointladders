@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { CreditCard, Trophy, CheckCircle, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getDisplayName } from '@/utils/userHelpers';
-import { getSeasonExpiryString } from '@/utils/seasons';
 
 export default function JoinLadder() {
   const [user, setUser] = useState(null);
@@ -21,15 +19,15 @@ export default function JoinLadder() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
-    const allLadders = await base44.entities.Ladder.filter({ status: 'active' });
-    setLadders(allLadders);
-    if (allLadders.length > 0) setSelectedLadder(allLadders[0]);
+    const { data: allLadders } = await supabase.from('ladders').select('*').match({ status: 'active' });
+    setLadders(allLadders || []);
+    if (allLadders?.length > 0) setSelectedLadder(allLadders[0]);
 
-    const mems = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (mems.length > 0) setExistingMembership(mems[0]);
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (mems?.length > 0) setExistingMembership(mems[0]);
 
     setLoading(false);
   };
@@ -44,20 +42,16 @@ export default function JoinLadder() {
 
     setProcessing(true);
     try {
-      const response = await base44.functions.invoke('createCheckoutSession', {
+      const response = await callApi('/api/create-checkout-session', {
         origin: window.location.origin,
         ladder_id: selectedLadder.id,
-        ladder_name: selectedLadder.name,
-        annual_fee: selectedLadder.annual_fee,
         user_id: user.id,
-        display_name: getDisplayName(user),
-        avatar_url: user.avatar_url || '',
         location: user.location || '',
         playing_style: user.playing_style || '',
         favorite_surface: user.favorite_surface || '',
         promo_code: promoCodeOverride || undefined,
       });
-      window.location.href = response.data.url;
+      window.location.href = response.url;
     } catch (error) {
       console.error('Checkout error:', error);
       alert('Failed to start checkout. Please try again.');
@@ -78,11 +72,11 @@ export default function JoinLadder() {
 
     setProcessing(true);
     try {
-      const response = await base44.functions.invoke('redeemPromoCode', {
+      const response = await callApi('/api/redeem-promo-code', {
         ladder_id: selectedLadder.id,
         promo_code: promoCode,
       });
-      const discount = response.data.discount_percent;
+      const discount = response.discount_percent;
       if (discount < 100) {
         // Partial discount — proceed to Stripe checkout at reduced price
         await handleCheckout(promoCode, discount);
@@ -92,8 +86,7 @@ export default function JoinLadder() {
       }
     } catch (error) {
       console.error('Promo redemption error:', error);
-      const msg = error?.response?.data?.error || 'Invalid promo code. Please try again.';
-      alert(msg);
+      alert(error.message || 'Invalid promo code. Please try again.');
       setProcessing(false);
     }
   };

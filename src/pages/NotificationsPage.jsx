@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { Bell, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatEasternDateTime } from '@/utils/easternTime';
@@ -26,24 +26,22 @@ export default function NotificationsPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
-    const notifs = await base44.entities.Notification.filter({ user_id: u.id });
-    setNotifications(notifs.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+    const { data: notifs } = await supabase.from('notifications').select('*').match({ user_id: u.id });
+    setNotifications((notifs || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     setLoading(false);
   };
 
   const markAllRead = async () => {
     const unread = notifications.filter(n => !n.read);
-    for (const n of unread) {
-      await base44.entities.Notification.update(n.id, { read: true });
-    }
+    await Promise.all(unread.map(n => supabase.from('notifications').update({ read: true }).eq('id', n.id)));
     load();
   };
 
   const markRead = async (notif) => {
     if (!notif.read) {
-      await base44.entities.Notification.update(notif.id, { read: true });
+      await supabase.from('notifications').update({ read: true }).eq('id', notif.id);
       load();
     }
   };

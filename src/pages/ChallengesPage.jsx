@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { Swords, Clock, CheckCircle, XCircle, Send, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,23 +42,23 @@ export default function ChallengesPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await withRetry(() => base44.auth.me());
+    const u = await withRetry(() => getCurrentUser());
     setUser(u);
 
-    const mems = await withRetry(() => base44.entities.LadderMembership.filter({ user_id: u.id }));
-    if (mems.length === 0) { setLoading(false); return; }
+    const { data: mems } = await withRetry(() => supabase.from('ladder_memberships').select('*').match({ user_id: u.id }));
+    if (!mems || mems.length === 0) { setLoading(false); return; }
     const mem = mems[0];
     setMyMembership(mem);
 
-    const allChallenges = await withRetry(() => base44.entities.Challenge.filter({ ladder_id: mem.ladder_id }));
-    const mine = allChallenges.filter(c => c.challenger_id === u.id || c.opponent_id === u.id);
+    const { data: allChallenges } = await withRetry(() => supabase.from('challenges').select('*').match({ ladder_id: mem.ladder_id }));
+    const mine = (allChallenges || []).filter(c => c.challenger_id === u.id || c.opponent_id === u.id);
     setChallenges(mine.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
 
-    const allMems = await withRetry(() => base44.entities.LadderMembership.filter({ ladder_id: mem.ladder_id }));
+    const { data: allMems } = await withRetry(() => supabase.from('ladder_memberships').select('*').match({ ladder_id: mem.ladder_id }));
     const window = 10;
     const myRank = mem.rank || 999;
     const isTop5 = myRank <= 5;
-    const eligible = allMems.filter(m => {
+    const eligible = (allMems || []).filter(m => {
       if (m.user_id === u.id || m.status !== 'active') return false;
       const targetRank = m.rank || 999;
       if (targetRank < myRank) return (myRank - targetRank) <= window;
@@ -69,7 +69,7 @@ export default function ChallengesPage() {
     setEligiblePlayers(eligible.sort((a, b) => (a.rank || 999) - (b.rank || 999)));
 
     const map = {};
-    allMems.forEach(m => { map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, city: m.city, state: m.state }; });
+    (allMems || []).forEach(m => { map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, city: m.city, state: m.state }; });
     map[u.id] = u;
     setAllUsers(map);
     setLoading(false);
@@ -87,7 +87,7 @@ export default function ChallengesPage() {
       return;
     }
 
-    const newChallenge = await base44.entities.Challenge.create({
+    await supabase.from('challenges').insert({
       challenger_id: user.id,
       opponent_id: selectedOpponent.user_id,
       ladder_id: myMembership.ladder_id,
@@ -96,12 +96,11 @@ export default function ChallengesPage() {
       opponent_rank_at_time: selectedOpponent.rank,
       message: challengeMsg,
     });
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: selectedOpponent.user_id,
       type: 'challenge_received',
       title: 'New Challenge!',
       body: `${getDisplayName(user)} has challenged you on the ladder.`,
-      read: false,
     });
     setShowNewChallenge(false);
     setSelectedOpponent(null);
@@ -111,26 +110,24 @@ export default function ChallengesPage() {
   };
 
   const acceptChallenge = async (challenge) => {
-    await base44.entities.Challenge.update(challenge.id, { status: 'accepted' });
-    await base44.entities.Notification.create({
+    await supabase.from('challenges').update({ status: 'accepted' }).eq('id', challenge.id);
+    await callApi('/api/notify', {
       user_id: challenge.challenger_id,
       type: 'challenge_accepted',
       title: 'Challenge Accepted!',
       body: `${getDisplayName(allUsers[challenge.opponent_id])} has accepted your challenge.`,
-      read: false,
     });
     load();
   };
 
   const cancelChallenge = async (challenge) => {
     if (!window.confirm('Cancel this challenge? The opponent will be notified.')) return;
-    await base44.entities.Challenge.update(challenge.id, { status: 'cancelled' });
-    await base44.entities.Notification.create({
+    await supabase.from('challenges').update({ status: 'cancelled' }).eq('id', challenge.id);
+    await callApi('/api/notify', {
       user_id: challenge.opponent_id,
       type: 'challenge_declined',
       title: 'Challenge Cancelled',
       body: `${getDisplayName(user)} has cancelled their challenge.`,
-      read: false,
     });
     load();
   };
@@ -155,19 +152,18 @@ export default function ChallengesPage() {
     const isForfeited = prevDeclines >= 2;
     const newStatus = isForfeited ? 'completed' : 'declined';
 
-    await base44.entities.Challenge.update(declineTarget.id, {
+    await supabase.from('challenges').update({
       status: newStatus,
       message: (declineTarget.message ? declineTarget.message + '\n\nDecline reason: ' : 'Decline reason: ') + declineReason.trim(),
-    });
+    }).eq('id', declineTarget.id);
 
-    await base44.entities.Notification.create({
+    await callApi('/api/notify', {
       user_id: challengerId,
       type: 'challenge_declined',
       title: isForfeited ? 'Challenge Forfeited' : 'Challenge Declined',
       body: isForfeited
         ? `${getDisplayName(allUsers[declineTarget.opponent_id])} has declined your challenge 3 times. This counts as a forfeit.`
         : `${getDisplayName(allUsers[declineTarget.opponent_id])} declined your challenge. Reason: ${declineReason.trim()}`,
-      read: false,
     });
 
     setDeclineTarget(null);

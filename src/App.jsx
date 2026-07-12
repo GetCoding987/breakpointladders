@@ -4,7 +4,6 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -29,18 +28,14 @@ import CompleteProfile from './pages/CompleteProfile';
 import RulesPage from './pages/RulesPage';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
+  const { isLoadingAuth } = useAuth();
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  if (isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-[hsl(217,72%,40%)] rounded-full animate-spin"></div>
       </div>
     );
-  }
-
-  if (authError?.type === 'user_not_registered') {
-    return <UserNotRegisteredError />;
   }
 
   return (

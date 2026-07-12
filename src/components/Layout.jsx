@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getDisplayName } from '@/utils/userHelpers';
 import {
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [pendingChallenges, setPendingChallenges] = useState(0);
@@ -22,20 +22,20 @@ export default function Layout() {
     if (!user) return;
     const loadCounts = async () => {
       try {
-        const [msgs, notifs, challenges, myMems] = await Promise.all([
-          base44.entities.Message.filter({ recipient_id: user.id, read: false }),
-          base44.entities.Notification.filter({ user_id: user.id, read: false }),
-          base44.entities.Challenge.filter({ opponent_id: user.id, status: 'pending' }),
-          base44.entities.LadderMembership.filter({ user_id: user.id }),
+        const [{ data: msgs }, { data: notifs }, { data: challenges }, { data: myMems }] = await Promise.all([
+          supabase.from('messages').select('*').match({ recipient_id: user.id, read: false }),
+          supabase.from('notifications').select('*').match({ user_id: user.id, read: false }),
+          supabase.from('challenges').select('*').match({ opponent_id: user.id, status: 'pending' }),
+          supabase.from('ladder_memberships').select('*').match({ user_id: user.id }),
         ]);
-        setUnreadMessages(msgs.length);
-        setUnreadNotifications(notifs.length);
-        setPendingChallenges(challenges.length);
+        setUnreadMessages(msgs?.length || 0);
+        setUnreadNotifications(notifs?.length || 0);
+        setPendingChallenges(challenges?.length || 0);
 
         // Pending score confirmations: matches where I'm not the submitter and status is pending
-        if (myMems.length > 0) {
-          const allMatches = await base44.entities.Match.filter({ ladder_id: myMems[0].ladder_id });
-          const needConfirm = allMatches.filter(m =>
+        if (myMems?.length > 0) {
+          const { data: allMatches } = await supabase.from('matches').select('*').match({ ladder_id: myMems[0].ladder_id });
+          const needConfirm = (allMatches || []).filter(m =>
             (m.player1_id === user.id || m.player2_id === user.id) &&
             m.status === 'pending_confirmation' &&
             m.submitted_by_id !== user.id
@@ -54,9 +54,12 @@ export default function Layout() {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => loadCounts(), 500);
     };
-    const unsubNotifs = base44.entities.Notification.subscribe(debouncedLoad);
-    const unsubMsgs = base44.entities.Message.subscribe(debouncedLoad);
-    return () => { clearTimeout(debounceTimer); unsubNotifs(); unsubMsgs(); };
+    const channel = supabase
+      .channel(`layout-badges-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, debouncedLoad)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` }, debouncedLoad)
+      .subscribe();
+    return () => { clearTimeout(debounceTimer); supabase.removeChannel(channel); };
   }, [user]);
 
   // Redirect users with incomplete profiles to complete-profile page
@@ -68,7 +71,7 @@ export default function Layout() {
     }
   }, [user, location.pathname, navigate]);
 
-  const handleLogout = () => { base44.auth.logout('/'); };
+  const handleLogout = () => { logout(); };
   const isAdmin = user?.role === 'admin';
   const displayName = getDisplayName(user);
 
@@ -88,7 +91,7 @@ export default function Layout() {
       <div className="px-1 py-2 border-b border-white/10">
         <Link to="/" className="flex items-center justify-center">
           <img
-            src="https://media.base44.com/images/public/6a373346ca2369c384afdb52/a42b296e2_BPW_OptionA_dark-bg_white-wordmark_transparent_900x300.png"
+            src="/logo.png"
             alt="Break Point Westchester"
             className="w-[90%] h-auto"
           />

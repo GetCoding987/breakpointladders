@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { Camera, Snowflake, Sun, CreditCard, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ export default function ProfilePage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
     // Parse first/last name from custom fields, or fall back to full_name
     let firstName = u.first_name || '';
@@ -63,11 +63,11 @@ export default function ProfilePage() {
       phone: u.phone || '',
     });
 
-    const mems = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (mems.length > 0) {
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (mems?.length > 0) {
       setMembership(mems[0]);
-      const ladders = await base44.entities.Ladder.filter({ id: mems[0].ladder_id });
-      if (ladders.length > 0) setLadder(ladders[0]);
+      const { data: ladders } = await supabase.from('ladders').select('*').match({ id: mems[0].ladder_id });
+      if (ladders?.length > 0) setLadder(ladders[0]);
     }
     setLoading(false);
   };
@@ -85,9 +85,9 @@ export default function ProfilePage() {
     const lastName = form.last_name.trim();
     const fullName = [firstName, lastName].filter(Boolean).join(' ');
     const location = `${form.city.trim()}, ${form.state.trim()}`;
-    await base44.auth.updateMe({ first_name: firstName, last_name: lastName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone });
+    await supabase.from('profiles').update({ first_name: firstName, last_name: lastName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone }).eq('id', user.id);
     if (membership) {
-      await base44.entities.LadderMembership.update(membership.id, { display_name: fullName, location, city: form.city.trim(), state: form.state.trim() });
+      await supabase.from('ladder_memberships').update({ display_name: fullName, location, city: form.city.trim(), state: form.state.trim() }).eq('id', membership.id);
     }
     // Update local user state immediately and refresh global auth context
     setUser(prev => ({ ...prev, first_name: firstName, last_name: lastName, full_name: fullName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone }));
@@ -98,33 +98,36 @@ export default function ProfilePage() {
 
   const freezeAccount = async () => {
     if (!membership) return;
-    await base44.entities.LadderMembership.update(membership.id, {
+    await supabase.from('ladder_memberships').update({
       status: 'frozen_voluntary',
       freeze_start_date: new Date().toISOString().split('T')[0],
       freeze_return_date: freezeReturnDate || null,
-    });
+    }).eq('id', membership.id);
     setShowFreeze(false);
     load();
   };
 
   const unfreezeAccount = async () => {
     if (!membership) return;
-    await base44.entities.LadderMembership.update(membership.id, {
+    await supabase.from('ladder_memberships').update({
       status: 'active',
       freeze_start_date: null,
       freeze_return_date: null,
-    });
+    }).eq('id', membership.id);
     load();
   };
 
   const uploadAvatar = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    await base44.auth.updateMe({ avatar_url: file_url });
+    const path = `${user.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (uploadError) { console.error('Avatar upload failed:', uploadError); return; }
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
     // Keep membership avatar in sync
     if (membership) {
-      await base44.entities.LadderMembership.update(membership.id, { avatar_url: file_url });
+      await supabase.from('ladder_memberships').update({ avatar_url: publicUrl }).eq('id', membership.id);
     }
     load();
   };

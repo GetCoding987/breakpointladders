@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { supabase, getCurrentUser } from '@/lib/supabaseClient';
 import { Trophy, Search, Swords, Snowflake, CreditCard, MapPin, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,18 +28,18 @@ export default function LadderPage() {
 
   const load = async () => {
     setLoading(true);
-    const u = await base44.auth.me();
+    const u = await getCurrentUser();
     setUser(u);
 
-    const allLadders = await base44.entities.Ladder.filter({ status: 'active' });
-    setLadders(allLadders);
+    const { data: allLadders } = await supabase.from('ladders').select('*').match({ status: 'active' });
+    setLadders(allLadders || []);
 
-    const myMems = await base44.entities.LadderMembership.filter({ user_id: u.id });
-    if (myMems.length > 0) {
+    const { data: myMems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
+    if (myMems?.length > 0) {
       setMyMembership(myMems[0]);
       const first = allLadders.find(l => l.id === myMems[0].ladder_id) || allLadders[0];
       if (first) loadLadder(first, myMems[0]);
-    } else if (allLadders.length > 0) {
+    } else if (allLadders?.length > 0) {
       loadLadder(allLadders[0], null);
     }
 
@@ -48,13 +48,13 @@ export default function LadderPage() {
 
   const loadLadder = async (ladder, myMem) => {
     setSelectedLadder(ladder);
-    const mems = await base44.entities.LadderMembership.filter({ ladder_id: ladder.id });
-    const sorted = [...mems].sort((a, b) => (a.rank || 999) - (b.rank || 999));
+    const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ ladder_id: ladder.id });
+    const sorted = [...(mems || [])].sort((a, b) => (a.rank || 999) - (b.rank || 999));
     setMemberships(sorted);
 
     // Build user map from memberships (no admin User.list() needed)
     const map = {};
-    mems.forEach(m => {
+    (mems || []).forEach(m => {
       map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, playing_style: m.playing_style, favorite_surface: m.favorite_surface };
     });
     setAllUsers(map);
