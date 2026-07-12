@@ -13,6 +13,7 @@ export default function JoinLadder() {
   const [agreedToRules, setAgreedToRules] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
+  const [promoSuccess, setPromoSuccess] = useState('');
   const [processing, setProcessing] = useState(false);
   const navigate = useNavigate();
 
@@ -73,18 +74,22 @@ export default function JoinLadder() {
 
     setProcessing(true);
     setPromoError('');
+    setPromoSuccess('');
     try {
       const response = await callApi('/api/redeem-promo-code', {
         ladder_id: selectedLadder.id,
         promo_code: promoCode,
       });
       const discount = response.discount_percent;
+      setPromoSuccess(discount === 100
+        ? '✓ Promo code applied — free entry!'
+        : `✓ Promo code applied — ${discount}% off!`);
       if (discount < 100) {
         // Partial discount — proceed to Stripe checkout at reduced price
         await handleCheckout(promoCode, discount);
       } else {
-        // 100% discount — membership created, go home
-        navigate('/');
+        // 100% discount — membership created; brief pause so the success message is visible
+        setTimeout(() => navigate('/'), 1000);
       }
     } catch (error) {
       console.error('Promo redemption error:', error);
@@ -190,11 +195,14 @@ export default function JoinLadder() {
             type="text"
             placeholder="Promo code (optional)"
             value={promoCode}
-            onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }}
+            onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); setPromoSuccess(''); }}
             className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(217,72%,40%)]"
           />
           {promoError && (
             <p className="text-xs text-red-600 mt-1">{promoError}</p>
+          )}
+          {promoSuccess && (
+            <p className="text-xs text-green-600 mt-1">{promoSuccess}</p>
           )}
         </div>
 
