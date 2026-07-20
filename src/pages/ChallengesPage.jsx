@@ -96,12 +96,16 @@ export default function ChallengesPage() {
       opponent_rank_at_time: selectedOpponent.rank,
       message: challengeMsg,
     });
-    await callApi('/api/notify', {
-      user_id: selectedOpponent.user_id,
-      type: 'challenge_received',
-      title: 'New Challenge!',
-      body: `${getDisplayName(user)} has challenged you on the ladder.`,
-    });
+    try {
+      await callApi('/api/notify', {
+        user_id: selectedOpponent.user_id,
+        type: 'challenge_received',
+        title: 'New Challenge!',
+        body: `${getDisplayName(user)} has challenged you on the ladder.`,
+      });
+    } catch (err) {
+      console.warn('Failed to send challenge notification:', err?.message);
+    }
     setShowNewChallenge(false);
     setSelectedOpponent(null);
     setChallengeMsg('');
@@ -111,24 +115,32 @@ export default function ChallengesPage() {
 
   const acceptChallenge = async (challenge) => {
     await supabase.from('challenges').update({ status: 'accepted' }).eq('id', challenge.id);
-    await callApi('/api/notify', {
-      user_id: challenge.challenger_id,
-      type: 'challenge_accepted',
-      title: 'Challenge Accepted!',
-      body: `${getDisplayName(allUsers[challenge.opponent_id])} has accepted your challenge.`,
-    });
+    try {
+      await callApi('/api/notify', {
+        user_id: challenge.challenger_id,
+        type: 'challenge_accepted',
+        title: 'Challenge Accepted!',
+        body: `${getDisplayName(allUsers[challenge.opponent_id])} has accepted your challenge.`,
+      });
+    } catch (err) {
+      console.warn('Failed to send notification:', err?.message);
+    }
     load();
   };
 
   const cancelChallenge = async (challenge) => {
     if (!window.confirm('Cancel this challenge? The opponent will be notified.')) return;
     await supabase.from('challenges').update({ status: 'cancelled' }).eq('id', challenge.id);
-    await callApi('/api/notify', {
-      user_id: challenge.opponent_id,
-      type: 'challenge_declined',
-      title: 'Challenge Cancelled',
-      body: `${getDisplayName(user)} has cancelled their challenge.`,
-    });
+    try {
+      await callApi('/api/notify', {
+        user_id: challenge.opponent_id,
+        type: 'challenge_declined',
+        title: 'Challenge Cancelled',
+        body: `${getDisplayName(user)} has cancelled their challenge.`,
+      });
+    } catch (err) {
+      console.warn('Failed to send notification:', err?.message);
+    }
     load();
   };
 
@@ -157,14 +169,18 @@ export default function ChallengesPage() {
       message: (declineTarget.message ? declineTarget.message + '\n\nDecline reason: ' : 'Decline reason: ') + declineReason.trim(),
     }).eq('id', declineTarget.id);
 
-    await callApi('/api/notify', {
-      user_id: challengerId,
-      type: 'challenge_declined',
-      title: isForfeited ? 'Challenge Forfeited' : 'Challenge Declined',
-      body: isForfeited
-        ? `${getDisplayName(allUsers[declineTarget.opponent_id])} has declined your challenge 3 times. This counts as a forfeit.`
-        : `${getDisplayName(allUsers[declineTarget.opponent_id])} declined your challenge. Reason: ${declineReason.trim()}`,
-    });
+    try {
+      await callApi('/api/notify', {
+        user_id: challengerId,
+        type: 'challenge_declined',
+        title: isForfeited ? 'Challenge Forfeited' : 'Challenge Declined',
+        body: isForfeited
+          ? `${getDisplayName(allUsers[declineTarget.opponent_id])} has declined your challenge 3 times. This counts as a forfeit.`
+          : `${getDisplayName(allUsers[declineTarget.opponent_id])} declined your challenge. Reason: ${declineReason.trim()}`,
+      });
+    } catch (err) {
+      console.warn('Failed to send notification:', err?.message);
+    }
 
     setDeclineTarget(null);
     setDeclineReason('');
