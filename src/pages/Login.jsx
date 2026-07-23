@@ -11,9 +11,8 @@ const VALUE_PROPS = [
   "Every match counts toward your standing",
   "Play on your schedule—no leagues or weekly commitments",
   "Compete, improve, and earn your spot at the top",
+  "Join for just $25 a season",
 ];
-
-const PLACEHOLDER_CHARITIES = ["Aces for Autism", "Youth Grand Slam Fund", "Serve the Community"];
 
 const TOTAL_RAISED = 0;
 const totalRaisedDisplay = TOTAL_RAISED.toLocaleString("en-US", {
@@ -97,22 +96,9 @@ export default function Login() {
           </ul>
         </div>
 
-        <div className="relative mt-28">
-          <div className="text-xl font-semibold text-white">
-            Every entry fee supports three charities.
-          </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {PLACEHOLDER_CHARITIES.map((name) => (
-              <span
-                key={name}
-                className="inline-flex items-center whitespace-nowrap rounded-full bg-white/10 px-4 py-2.5 text-base font-semibold text-white"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
+        <div className="relative mt-28 text-xl font-semibold text-white">
+          Every entry fee supports multiple charities.
         </div>
-
       </aside>
 
       <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#f7f7f5] pl-6 pr-14 py-10 md:pl-10 md:pr-28 md:py-10">
