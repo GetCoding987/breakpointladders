@@ -52,7 +52,7 @@ export default function Login() {
 
   return (
     <div className="flex flex-col md:flex-row md:min-h-screen">
-      <aside className="relative shrink-0 overflow-hidden bg-[#0d1526] px-6 py-10 md:w-[420px] lg:w-[480px] md:px-11 md:py-14 flex flex-col">
+      <aside className="relative shrink-0 overflow-hidden bg-[#0d1526] px-6 py-10 md:w-[42%] md:min-w-[420px] md:max-w-[760px] md:px-11 md:py-14 flex flex-col">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -115,7 +115,7 @@ export default function Login() {
 
       </aside>
 
-      <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#f7f7f5] px-6 py-10 md:p-10">
+      <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[#f7f7f5] pl-6 pr-14 py-10 md:pl-10 md:pr-28 md:py-10">
         <svg
           className="pointer-events-none absolute -right-16 -top-28 h-64 w-64 md:-right-16 md:-top-32 md:h-96 md:w-96"
           viewBox="0 0 24 24"
