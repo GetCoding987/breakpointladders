@@ -62,35 +62,35 @@ export default function Login() {
         />
 
         <div className="relative mb-8 self-start">
-          <div className="flex items-center gap-2.5">
-            <span className="text-4xl font-extrabold tracking-wide text-white">BREAK</span>
-            <svg viewBox="0 0 24 24" className="h-7 w-7 shrink-0" aria-hidden="true">
+          <div className="flex items-center gap-3">
+            <span className="text-5xl font-extrabold tracking-wide text-white">BREAK</span>
+            <svg viewBox="0 0 24 24" className="h-9 w-9 shrink-0" aria-hidden="true">
               <circle cx="12" cy="12" r="11" fill="#c9e61f" />
               <path d="M12 1 C 6.5 6, 6.5 18, 12 23" fill="none" stroke="#fff" strokeWidth="1.4" />
               <path d="M12 1 C 17.5 6, 17.5 18, 12 23" fill="none" stroke="#fff" strokeWidth="1.4" />
             </svg>
-            <span className="text-4xl font-extrabold tracking-wide text-white">POINT</span>
+            <span className="text-5xl font-extrabold tracking-wide text-white">POINT</span>
           </div>
-          <div className="mt-1.5 flex items-center gap-3">
+          <div className="mt-2 flex items-center gap-3">
             <span className="h-px flex-1 bg-[#6ee06a]" />
-            <span className="text-xl font-bold tracking-[.25em] text-[#6ee06a]">WESTCHESTER</span>
+            <span className="text-2xl font-bold tracking-[.25em] text-[#6ee06a]">WESTCHESTER</span>
             <span className="h-px flex-1 bg-[#6ee06a]" />
           </div>
         </div>
 
-        <div className="relative mt-8 text-sm font-extrabold tracking-[.14em] text-[#6ee06a]">
+        <div className="relative mt-8 text-base font-extrabold tracking-[.14em] text-[#6ee06a]">
           LADDER LOGIN
         </div>
 
-        <div className="relative mt-4 max-w-[420px]">
-          <h2 className="text-3xl md:text-4xl font-bold text-white">Play. Compete. Climb.</h2>
-          <p className="mt-3 text-base text-white/75">
+        <div className="relative mt-4 max-w-[560px]">
+          <h2 className="text-4xl md:text-5xl font-bold text-white">Play. Compete. Climb.</h2>
+          <p className="mt-3 text-lg text-white/75">
             BreakPoint Ladders is the easiest way to find competitive tennis matches in your area.
           </p>
-          <ul className="mt-5 space-y-2.5">
+          <ul className="mt-5 space-y-3">
             {VALUE_PROPS.map((item) => (
-              <li key={item} className="flex items-start gap-2.5 text-base text-white/70">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6ee06a]" />
+              <li key={item} className="flex items-start gap-3 text-lg text-white/70">
+                <span className="mt-2.5 h-2 w-2 shrink-0 rounded-full bg-[#6ee06a]" />
                 <span>{item}</span>
               </li>
             ))}
@@ -98,14 +98,14 @@ export default function Login() {
         </div>
 
         <div className="relative mt-28">
-          <div className="text-lg font-semibold text-white">
+          <div className="text-xl font-semibold text-white">
             Every entry fee supports three charities.
           </div>
-          <div className="mt-4 flex flex-wrap gap-2.5">
+          <div className="mt-4 flex flex-wrap gap-3">
             {PLACEHOLDER_CHARITIES.map((name) => (
               <span
                 key={name}
-                className="inline-flex items-center whitespace-nowrap rounded-full bg-white/10 px-3.5 py-2 text-sm font-semibold text-white"
+                className="inline-flex items-center whitespace-nowrap rounded-full bg-white/10 px-4 py-2.5 text-base font-semibold text-white"
               >
                 {name}
               </span>
