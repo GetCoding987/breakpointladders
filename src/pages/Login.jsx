@@ -65,20 +65,20 @@ function NavyPanel() {
             </li>
           ))}
         </ul>
-      </div>
 
-      <div className="relative mt-auto flex items-center gap-3 pt-8">
-        {CHARITIES.map((c) => (
-          <a
-            key={c.alt}
-            href={c.href || undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-14 flex-1 items-center justify-center rounded-lg bg-white p-2 transition-opacity hover:opacity-90"
-          >
-            <img src={c.src} alt={c.alt} className="max-h-full max-w-full object-contain" />
-          </a>
-        ))}
+        <div className="relative mt-6 flex items-center gap-3">
+          {CHARITIES.map((c) => (
+            <a
+              key={c.alt}
+              href={c.href || undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-24 flex-1 items-center justify-center rounded-lg bg-white p-3 transition-opacity hover:opacity-90"
+            >
+              <img src={c.src} alt={c.alt} className="max-h-full max-w-full object-contain" />
+            </a>
+          ))}
+        </div>
       </div>
     </aside>
   );
