@@ -13,6 +13,7 @@ import { formatEasternDateFull, formatDateOnly } from '@/utils/easternTime';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AdminMessagesTab from '@/components/AdminMessagesTab';
 import { getDisplayName } from '@/utils/userHelpers';
+import { NTRP_VALUES } from '@/components/NtrpRatingField';
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -62,6 +63,15 @@ export default function AdminPage() {
     (mems || []).forEach(m => {
       map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, email: m.user_id };
     });
+
+    // NTRP rating lives only in profiles (not duplicated onto ladder_memberships)
+    const memberIds = (mems || []).map(m => m.user_id);
+    if (memberIds.length > 0) {
+      const { data: profs } = await supabase.from('profiles').select('id, ntrp_rating').in('id', memberIds);
+      (profs || []).forEach(p => {
+        if (map[p.id]) map[p.id].ntrp_rating = p.ntrp_rating;
+      });
+    }
     setAllUsers(map);
 
     const { data: allMatches } = await supabase.from('matches').select('*').match({ ladder_id: ladder.id });
@@ -95,6 +105,11 @@ export default function AdminPage() {
 
   const updateMemberRank = async (mem, newRank) => {
     await supabase.from('ladder_memberships').update({ rank: parseInt(newRank) }).eq('id', mem.id);
+    if (selectedLadder) loadLadderData(selectedLadder);
+  };
+
+  const updateMemberNtrp = async (mem, ntrp) => {
+    await supabase.from('profiles').update({ ntrp_rating: ntrp ? parseFloat(ntrp) : null }).eq('id', mem.user_id);
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
@@ -345,6 +360,19 @@ export default function AdminPage() {
                           className="w-14 h-7 text-xs text-center"
                         />
                       </div>
+                      <Select
+                        value={memberUser?.ntrp_rating != null ? String(memberUser.ntrp_rating) : ""}
+                        onValueChange={val => updateMemberNtrp(mem, val)}
+                      >
+                        <SelectTrigger className="h-7 w-20 text-xs">
+                          <SelectValue placeholder="NTRP" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {NTRP_VALUES.map(v => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Select value={mem.status} onValueChange={val => updateMemberStatus(mem, val)}>
                         <SelectTrigger className="h-7 w-32 text-xs">
                           <SelectValue />

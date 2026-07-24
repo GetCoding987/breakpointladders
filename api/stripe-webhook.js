@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { supabaseAdmin } from '../lib/supabaseAdmin.js';
 import { getSeasonExpiryString } from '../lib/seasonExpiry.js';
+import { computeInitialRankAndShift } from '../lib/ladderPlacement.js';
 
 // Signature verification requires the exact raw request bytes, so
 // automatic body parsing must be disabled for this route.
@@ -49,11 +50,12 @@ export default async function handler(req, res) {
 				return res.status(200).json({ received: true, message: 'Membership already exists' });
 			}
 
-			const { data: allMems } = await supabaseAdmin
-				.from('ladder_memberships')
-				.select('rank')
-				.eq('ladder_id', metadata.ladder_id);
-			const maxRank = allMems?.length > 0 ? Math.max(...allMems.map((m) => m.rank || 0)) : 0;
+			const { data: rater } = await supabaseAdmin
+				.from('profiles')
+				.select('ntrp_rating')
+				.eq('id', metadata.user_id)
+				.single();
+			const rank = await computeInitialRankAndShift(supabaseAdmin, metadata.ladder_id, rater?.ntrp_rating ?? null);
 
 			await supabaseAdmin.from('ladder_memberships').insert({
 				user_id: metadata.user_id,
@@ -63,7 +65,7 @@ export default async function handler(req, res) {
 				location: metadata.location || null,
 				playing_style: metadata.playing_style || null,
 				favorite_surface: metadata.favorite_surface || null,
-				rank: maxRank + 1,
+				rank,
 				wins: 0,
 				losses: 0,
 				status: 'active',

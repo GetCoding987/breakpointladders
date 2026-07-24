@@ -6,7 +6,6 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import ScrollToTop from './components/ScrollToTop';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -20,6 +19,7 @@ import MatchesPage from './pages/MatchesPage';
 import MessagesPage from './pages/MessagesPage';
 
 import ProfilePage from './pages/ProfilePage';
+import PlayerProfilePage from './pages/PlayerProfilePage';
 import AdminPage from './pages/AdminPage';
 import NotificationsPage from './pages/NotificationsPage';
 import JoinLadder from './pages/JoinLadder';
@@ -41,7 +41,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/join" element={<JoinLadder />} />
@@ -57,6 +57,7 @@ const AuthenticatedApp = () => {
           <Route path="/matches/submit" element={<MatchesPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/players/:userId" element={<PlayerProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/rules" element={<RulesPage />} />

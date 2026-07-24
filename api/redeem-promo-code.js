@@ -1,6 +1,7 @@
 import { supabaseAdmin, getUserFromRequest } from '../lib/supabaseAdmin.js';
 import { findPromoCode } from '../lib/stripePromo.js';
 import { getSeasonExpiryString } from '../lib/seasonExpiry.js';
+import { computeInitialRankAndShift } from '../lib/ladderPlacement.js';
 
 export default async function handler(req, res) {
 	if (req.method !== 'POST') {
@@ -35,24 +36,20 @@ export default async function handler(req, res) {
 			return res.status(400).json({ error: 'Already a member of this ladder' });
 		}
 
-		const { data: allMems } = await supabaseAdmin
-			.from('ladder_memberships')
-			.select('rank')
-			.eq('ladder_id', ladder_id);
-		const maxRank = allMems?.length > 0 ? Math.max(...allMems.map((m) => m.rank || 0)) : 0;
-
 		const { data: profile } = await supabaseAdmin
 			.from('profiles')
-			.select('full_name, avatar_url')
+			.select('full_name, avatar_url, ntrp_rating')
 			.eq('id', user.id)
 			.single();
+
+		const rank = await computeInitialRankAndShift(supabaseAdmin, ladder_id, profile?.ntrp_rating ?? null);
 
 		await supabaseAdmin.from('ladder_memberships').insert({
 			user_id: user.id,
 			ladder_id,
 			display_name: profile?.full_name || '',
 			avatar_url: profile?.avatar_url || null,
-			rank: maxRank + 1,
+			rank,
 			wins: 0,
 			losses: 0,
 			status: 'active',

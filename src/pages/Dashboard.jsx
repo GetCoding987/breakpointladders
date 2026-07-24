@@ -9,6 +9,7 @@ import FreezeStatusBadge from '@/components/FreezeStatusBadge';
 import { Button } from '@/components/ui/button';
 import { getDisplayName } from '@/utils/userHelpers';
 import { formatEasternDate, formatEasternDateFull, formatDateOnly } from '@/utils/easternTime';
+import PlayerHoverCard from '@/components/PlayerHoverCard';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -50,22 +51,32 @@ export default function Dashboard() {
     const userMap = {};
     allMemberships.forEach((m) => {
       const existing = userMap[m.user_id] || {};
-      userMap[m.user_id] = { 
+      userMap[m.user_id] = {
         ...existing,
-        id: m.user_id, 
-        full_name: m.display_name, 
-        avatar_url: m.avatar_url, 
+        id: m.user_id,
+        full_name: m.display_name,
+        avatar_url: m.avatar_url,
         location: m.location,
-        playing_style: m.playing_style, 
-        favorite_surface: m.favorite_surface 
+        playing_style: m.playing_style,
+        favorite_surface: m.favorite_surface
       };
     });
-    // Also add current user with location from membership if available
-    const currentUserMem = allMemberships.find(m => m.user_id === u.id);
-    userMap[u.id] = {
-      ...u,
-      location: currentUserMem?.location || u.location
-    };
+    // Membership location can be blank if it predates the field being captured —
+    // backfill from each player's profile so location shows for everyone, not just "You".
+    // Also pull city/gender/ntrp_rating for the hover-preview card.
+    const memberIds = allMemberships.map((m) => m.user_id);
+    const { data: memberProfiles } = await supabase.from('profiles').select('id, location, city, state, gender, ntrp_rating').in('id', memberIds);
+    (memberProfiles || []).forEach((p) => {
+      if (userMap[p.id]) {
+        if (!userMap[p.id].location) {
+          userMap[p.id].location = [p.city, p.state].filter(Boolean).join(', ') || p.location;
+        }
+        userMap[p.id].city = p.city;
+        userMap[p.id].gender = p.gender;
+        userMap[p.id].ntrp_rating = p.ntrp_rating;
+      }
+    });
+    userMap[u.id] = { ...userMap[u.id], ...u, location: userMap[u.id]?.location || u.location };
     setAllUsers(userMap);
     setTopPlayers(sorted);
 
@@ -185,21 +196,25 @@ export default function Dashboard() {
               const memberUser = allUsers[mem.user_id];
               const isMe = mem.user_id === user?.id;
               return (
-                <div key={mem.id} className={`flex items-center gap-2 px-3 py-2 ${isMe ? 'bg-blue-50' : 'hover:bg-muted/30'} transition-colors`}>
-                  <RankBadge rank={mem.rank} size="sm" />
-                  <PlayerAvatar user={memberUser} size="xs" showStatus status={mem.status} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-foreground truncate">
-                      {getDisplayName(memberUser)}
-                      {isMe && <span className="text-blue-600 ml-1">(You)</span>}
-                    </p>
-                    {memberUser?.location && (
-                      <p className="text-[10px] text-muted-foreground truncate">{memberUser.location}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground">{mem.wins || 0}-{mem.losses || 0}</p>
-                  </div>
-                  
-                </div>);
+                <PlayerHoverCard key={mem.id} user={memberUser}>
+                  <Link
+                    to={isMe ? '/profile' : `/players/${mem.user_id}`}
+                    className={`flex items-center gap-2 px-3 py-2 ${isMe ? 'bg-blue-50' : 'hover:bg-muted/30'} transition-colors`}
+                  >
+                    <RankBadge rank={mem.rank} size="sm" />
+                    <PlayerAvatar user={memberUser} size="xs" showStatus status={mem.status} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {getDisplayName(memberUser)}
+                        {isMe && <span className="text-blue-600 ml-1">(You)</span>}
+                      </p>
+                      {memberUser?.location && (
+                        <p className="text-[10px] text-muted-foreground truncate">{memberUser.location}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{mem.wins || 0}-{mem.losses || 0}</p>
+                    </div>
+                  </Link>
+                </PlayerHoverCard>);
 
             })}
             {topPlayers.length === 0 &&

@@ -65,7 +65,7 @@ export default function Layout() {
   // Redirect users with incomplete profiles to complete-profile page
   useEffect(() => {
     if (!user) return;
-    const missingProfile = !user.gender || !user.city || !user.state;
+    const missingProfile = !user.gender || !user.city || !user.state || !user.ntrp_rating;
     if (missingProfile && location.pathname !== '/complete-profile' && location.pathname !== '/profile') {
       navigate('/complete-profile');
     }

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import { getDisplayName } from '@/utils/userHelpers';
+import { NtrpDefinitionsLink } from '@/components/NtrpRatingField';
 
 export default function ProfilePage() {
   const { checkUserAuth } = useAuth();
@@ -285,6 +286,12 @@ export default function ProfilePage() {
                {user?.gender && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Gender</span><span className="font-medium">{user.gender}</span></div>}
                {(user?.city || user?.state || user?.location) && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Location</span><span className="font-medium">{[user.city, user.state].filter(Boolean).join(', ') || user.location}</span></div>}
                {user?.phone && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Phone</span><span className="font-medium">{user.phone}</span></div>}
+               {user?.ntrp_rating && (
+                 <div className="flex justify-between text-sm">
+                   <span className="text-muted-foreground"><NtrpDefinitionsLink>NTRP Self-Rating</NtrpDefinitionsLink></span>
+                   <span className="font-medium">{user.ntrp_rating}</span>
+                 </div>
+               )}
               {!user?.city && !user?.state && !user?.location && !user?.phone && (
                 <p className="text-sm text-muted-foreground">Click "Edit Profile" to add your details.</p>
               )}

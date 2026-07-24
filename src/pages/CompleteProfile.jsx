@@ -9,6 +9,9 @@ import { User, MapPin, Phone, Loader2, UserPlus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import AuthLayout from '@/components/AuthLayout';
+import { NtrpRatingSelect } from '@/components/NtrpRatingField';
+
+const STATE = 'New York';
 
 export default function CompleteProfile() {
   const navigate = useNavigate();
@@ -18,8 +21,8 @@ export default function CompleteProfile() {
   const [lastName, setLastName] = useState('');
   const [gender, setGender] = useState('');
   const [city, setCity] = useState('');
-  const [state, setState] = useState('');
   const [phone, setPhone] = useState('');
+  const [ntrpRating, setNtrpRating] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,8 +42,8 @@ export default function CompleteProfile() {
       setLastName(ln);
       setGender(u.gender || '');
       setCity(u.city || '');
-      setState(u.state || '');
       setPhone(u.phone || '');
+      setNtrpRating(u.ntrp_rating != null ? String(u.ntrp_rating) : '');
       setLoading(false);
     };
     init();
@@ -51,21 +54,22 @@ export default function CompleteProfile() {
     setError('');
     if (!firstName.trim() || !lastName.trim()) { setError('Please enter your first and last name'); return; }
     if (!gender) { setError('Please select your gender'); return; }
-    if (!state) { setError('Please select your state'); return; }
     if (!city.trim()) { setError('Please select a valid Westchester municipality'); return; }
+    if (!ntrpRating) { setError('Please select your NTRP self-rating'); return; }
 
     setSaving(true);
     try {
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
-      const location = `${city.trim()}, ${state.trim()}`;
+      const location = `${city.trim()}, ${STATE}`;
       await supabase.from('profiles').update({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         gender,
         location,
         city: city.trim(),
-        state: state.trim(),
+        state: STATE,
         phone: phone.trim(),
+        ntrp_rating: parseFloat(ntrpRating),
       }).eq('id', user.id);
       // Sync membership if exists
       const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: user.id });
@@ -74,7 +78,7 @@ export default function CompleteProfile() {
           display_name: fullName,
           location,
           city: city.trim(),
-          state: state.trim(),
+          state: STATE,
         }).eq('id', mems[0].id);
       }
       await checkUserAuth();
@@ -132,21 +136,7 @@ export default function CompleteProfile() {
             </SelectContent>
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <CityAutocomplete value={city} onChange={setCity} required />
-          <div className="space-y-2">
-            <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
-            <Select value={state} onValueChange={setState}>
-              <SelectTrigger id="state" className="h-12" required>
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="New York">New York</SelectItem>
-                <SelectItem value="Connecticut">Connecticut</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <CityAutocomplete value={city} onChange={setCity} required />
         <div className="space-y-2">
           <Label htmlFor="phone">Phone (optional)</Label>
           <div className="relative">
@@ -168,6 +158,7 @@ export default function CompleteProfile() {
             />
           </div>
         </div>
+        <NtrpRatingSelect value={ntrpRating} onValueChange={setNtrpRating} />
         <Button type="submit" className="w-full h-12 font-medium" disabled={saving}>
           {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : 'Continue'}
         </Button>

@@ -9,6 +9,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import FreezeStatusBadge from '@/components/FreezeStatusBadge';
 import { getDisplayName } from '@/utils/userHelpers';
 import { useNavigate } from 'react-router-dom';
+import PlayerHoverCard from '@/components/PlayerHoverCard';
 
 export default function LadderPage() {
   const navigate = useNavigate();
@@ -57,6 +58,23 @@ export default function LadderPage() {
     (mems || []).forEach(m => {
       map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location, playing_style: m.playing_style, favorite_surface: m.favorite_surface };
     });
+    // Membership location can be blank if it predates the field being captured —
+    // backfill from each player's profile so location shows for everyone. Also
+    // pull city/gender/ntrp_rating for the hover-preview card.
+    const memberIds = (mems || []).map(m => m.user_id);
+    if (memberIds.length > 0) {
+      const { data: memberProfiles } = await supabase.from('profiles').select('id, location, city, state, gender, ntrp_rating').in('id', memberIds);
+      (memberProfiles || []).forEach(p => {
+        if (map[p.id]) {
+          if (!map[p.id].location) {
+            map[p.id].location = [p.city, p.state].filter(Boolean).join(', ') || p.location;
+          }
+          map[p.id].city = p.city;
+          map[p.id].gender = p.gender;
+          map[p.id].ntrp_rating = p.ntrp_rating;
+        }
+      });
+    }
     setAllUsers(map);
   };
 
@@ -183,21 +201,26 @@ export default function LadderPage() {
                     <div className="md:col-span-1 shrink-0">
                       <RankBadge rank={mem.rank} size="sm" />
                     </div>
-                    <div className="flex items-center gap-3 md:col-span-6 flex-1 min-w-0">
-                      <PlayerAvatar user={memberUser} size="sm" showStatus status={mem.status} />
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm truncate">
-                          {getDisplayName(memberUser)}
-                          {isMe && <span className="text-blue-500 text-xs ml-1">(You)</span>}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          {memberUser?.location && (
-                            <p className="text-xs text-muted-foreground truncate">{memberUser.location}</p>
-                          )}
-                          <FreezeStatusBadge status={mem.status} />
+                    <PlayerHoverCard user={memberUser}>
+                      <Link
+                        to={isMe ? '/profile' : `/players/${mem.user_id}`}
+                        className="flex items-center gap-3 md:col-span-6 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                      >
+                        <PlayerAvatar user={memberUser} size="sm" showStatus status={mem.status} />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate">
+                            {getDisplayName(memberUser)}
+                            {isMe && <span className="text-blue-500 text-xs ml-1">(You)</span>}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {memberUser?.location && (
+                              <p className="text-xs text-muted-foreground truncate">{memberUser.location}</p>
+                            )}
+                            <FreezeStatusBadge status={mem.status} />
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </Link>
+                    </PlayerHoverCard>
                     <div className="md:col-span-2 shrink-0 md:text-center">
                       <span className="text-sm font-medium text-green-600">{mem.wins || 0}</span>
                       <span className="text-muted-foreground mx-1">-</span>
