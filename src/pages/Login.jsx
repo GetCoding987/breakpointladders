@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 import { Loader2, User, Phone, CheckCircle2 } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -39,7 +40,7 @@ function NavyPanel() {
       <img
         src="/BPW_OptionA_NormalA_UseOnDark_1200x400_transparent.png"
         alt="Breakpoint Westchester"
-        className="relative mb-8 h-auto w-3/4 self-start object-contain"
+        className="relative mb-8 h-auto w-3/4 self-center object-contain"
       />
 
       <div className="relative mt-4 max-w-[560px]">
@@ -75,6 +76,8 @@ function NavyPanel() {
 }
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { user, authChecked, checkUserAuth } = useAuth();
   const [mode, setMode] = useState("signin");
 
   // Sign-in fields
@@ -102,6 +105,29 @@ export default function Login() {
       if (!rpcError && typeof data === "number") setTotalRaised(data);
     });
   }, []);
+
+  useEffect(() => {
+    if (!authChecked || !user) return;
+    const missingProfile = !user.gender || !user.city || !user.state || !user.ntrp_rating;
+    if (!missingProfile) {
+      navigate("/", { replace: true });
+      return;
+    }
+    let fn = user.first_name || "";
+    let ln = user.last_name || "";
+    if ((!fn || !ln) && user.full_name) {
+      const parts = user.full_name.split(" ");
+      if (!fn) fn = parts[0] || "";
+      if (!ln) ln = parts.slice(1).join(" ") || "";
+    }
+    setFirstName(fn);
+    setLastName(ln);
+    setGender(user.gender || "");
+    setCity(user.city || "");
+    setPhone(user.phone || "");
+    setNtrpRating(user.ntrp_rating != null ? String(user.ntrp_rating) : "");
+    setMode("complete-profile");
+  }, [authChecked, user, navigate]);
 
   const switchMode = (next) => {
     setMode(next);
@@ -181,6 +207,65 @@ export default function Login() {
     });
   };
 
+  const handleCompleteProfile = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Please enter your first and last name");
+      return;
+    }
+    if (!gender) {
+      setError("Please select your gender");
+      return;
+    }
+    if (!city.trim()) {
+      setError("Please select a valid Westchester municipality");
+      return;
+    }
+    if (!ntrpRating) {
+      setError("Please select your NTRP self-rating");
+      return;
+    }
+    setLoading(true);
+    try {
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      const location = `${city.trim()}, ${STATE}`;
+      await supabase.from("profiles").update({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        gender,
+        location,
+        city: city.trim(),
+        state: STATE,
+        phone: phone.trim(),
+        ntrp_rating: parseFloat(ntrpRating),
+      }).eq("id", user.id);
+      const { data: mems } = await supabase.from("ladder_memberships").select("*").match({ user_id: user.id });
+      if (mems?.length > 0) {
+        await supabase.from("ladder_memberships").update({
+          display_name: fullName,
+          location,
+          city: city.trim(),
+          state: STATE,
+        }).eq("id", mems[0].id);
+      }
+      await checkUserAuth();
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "Failed to save profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f5]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0d1526]" />
+      </div>
+    );
+  }
+
   if (confirmationSent) {
     return (
       <div className="flex flex-col md:flex-row md:min-h-screen">
@@ -230,28 +315,38 @@ export default function Login() {
               <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Welcome back</h1>
               <p className="mt-1 text-sm text-[#666]">Log in to your account</p>
             </>
-          ) : (
+          ) : mode === "signup" ? (
             <>
               <div className="text-[11px] font-extrabold tracking-[.12em] text-[#2f9e57]">SIGN UP</div>
               <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Create your account</h1>
               <p className="mt-1 text-sm text-[#666]">Sign up to get started</p>
             </>
+          ) : (
+            <>
+              <div className="text-[11px] font-extrabold tracking-[.12em] text-[#2f9e57]">GETTING STARTED</div>
+              <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Complete your profile</h1>
+              <p className="mt-1 text-sm text-[#666]">Please fill in your details to continue</p>
+            </>
           )}
 
-          <button
-            type="button"
-            onClick={handleGoogle}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e2e2e0] bg-white py-3 text-sm font-semibold text-[#222]"
-          >
-            <GoogleIcon className="h-[18px] w-[18px]" />
-            Continue with Google
-          </button>
+          {mode !== "complete-profile" && (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogle}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e2e2e0] bg-white py-3 text-sm font-semibold text-[#222]"
+              >
+                <GoogleIcon className="h-[18px] w-[18px]" />
+                Continue with Google
+              </button>
 
-          <div className="my-4 flex items-center gap-3 text-[11px] font-semibold text-[#999]">
-            <div className="h-px flex-1 bg-[#e5e5e3]" />
-            OR
-            <div className="h-px flex-1 bg-[#e5e5e3]" />
-          </div>
+              <div className="my-4 flex items-center gap-3 text-[11px] font-semibold text-[#999]">
+                <div className="h-px flex-1 bg-[#e5e5e3]" />
+                OR
+                <div className="h-px flex-1 bg-[#e5e5e3]" />
+              </div>
+            </>
+          )}
 
           {error && (
             <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
@@ -310,7 +405,7 @@ export default function Login() {
                 )}
               </button>
             </form>
-          ) : (
+          ) : mode === "signup" ? (
             <form onSubmit={handleSignUp} className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -456,6 +551,104 @@ export default function Login() {
                 )}
               </button>
             </form>
+          ) : (
+            <form onSubmit={handleCompleteProfile} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="cpFirstName" className="mb-1.5 block text-sm font-semibold text-[#333]">
+                    First name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" />
+                    <input
+                      id="cpFirstName"
+                      type="text"
+                      autoComplete="given-name"
+                      autoFocus
+                      placeholder="Jane"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="cpLastName" className="mb-1.5 block text-sm font-semibold text-[#333]">
+                    Last name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" />
+                    <input
+                      id="cpLastName"
+                      type="text"
+                      autoComplete="family-name"
+                      placeholder="Smith"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#333]">Gender</label>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger className="h-[42px]">
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <CityAutocomplete value={city} onChange={setCity} required />
+
+              <div>
+                <label htmlFor="cpPhone" className="mb-1.5 block text-sm font-semibold text-[#333]">
+                  Phone (optional)
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#999]" />
+                  <input
+                    id="cpPhone"
+                    type="tel"
+                    placeholder="(555) 555-5555"
+                    value={phone}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      let formatted = digits;
+                      if (digits.length >= 7) formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+                      else if (digits.length >= 4) formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                      else if (digits.length >= 1) formatted = `(${digits}`;
+                      setPhone(formatted);
+                    }}
+                    className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
+                  />
+                </div>
+              </div>
+
+              <NtrpRatingSelect value={ntrpRating} onValueChange={setNtrpRating} />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0d1526] py-3 text-sm font-bold text-white disabled:opacity-70"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Continue"
+                )}
+              </button>
+            </form>
           )}
 
           {mode === "signin" ? (
@@ -469,7 +662,7 @@ export default function Login() {
                 Create one
               </button>
             </p>
-          ) : (
+          ) : mode === "signup" ? (
             <p className="mt-4 text-center text-sm text-[#666]">
               Already have an account?{" "}
               <button
@@ -480,7 +673,7 @@ export default function Login() {
                 Log in
               </button>
             </p>
-          )}
+          ) : null}
         </div>
       </main>
     </div>

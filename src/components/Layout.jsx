@@ -62,12 +62,12 @@ export default function Layout() {
     return () => { clearTimeout(debounceTimer); supabase.removeChannel(channel); };
   }, [user]);
 
-  // Redirect users with incomplete profiles to complete-profile page
+  // Redirect users with incomplete profiles to the splash page's complete-profile mode
   useEffect(() => {
     if (!user) return;
     const missingProfile = !user.gender || !user.city || !user.state || !user.ntrp_rating;
-    if (missingProfile && location.pathname !== '/complete-profile' && location.pathname !== '/profile') {
-      navigate('/complete-profile');
+    if (missingProfile && location.pathname !== '/login' && location.pathname !== '/profile') {
+      navigate('/login');
     }
   }, [user, location.pathname, navigate]);
 

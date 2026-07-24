@@ -24,7 +24,6 @@ import AdminPage from './pages/AdminPage';
 import NotificationsPage from './pages/NotificationsPage';
 import JoinLadder from './pages/JoinLadder';
 import PaymentSuccess from './pages/PaymentSuccess';
-import CompleteProfile from './pages/CompleteProfile';
 import RulesPage from './pages/RulesPage';
 
 const AuthenticatedApp = () => {
@@ -46,7 +45,7 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/join" element={<JoinLadder />} />
       <Route path="/payment-success" element={<PaymentSuccess />} />
-      <Route path="/complete-profile" element={<CompleteProfile />} />
+      <Route path="/complete-profile" element={<Navigate to="/login" replace />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
