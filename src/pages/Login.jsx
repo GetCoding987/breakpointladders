@@ -37,9 +37,9 @@ function NavyPanel() {
   return (
     <aside className="relative shrink-0 overflow-hidden bg-[#0d1526] px-6 py-10 md:w-[35%] md:min-w-[420px] md:max-w-[640px] md:px-11 md:py-14 flex flex-col">
       <img
-        src="/BPW_OptionA_NormalA_UseOnDark_900x300_transparent.png"
+        src="/BPW_OptionA_NormalA_UseOnDark_1200x400_transparent.png"
         alt="Breakpoint Westchester"
-        className="relative mb-8 h-auto w-64 self-start object-contain"
+        className="relative mb-8 h-auto w-3/4 self-start object-contain"
       />
 
       <div className="relative mt-4 max-w-[560px]">
