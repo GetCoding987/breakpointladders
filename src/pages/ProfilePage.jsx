@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import { getDisplayName } from '@/utils/userHelpers';
-import { NtrpDefinitionsLink } from '@/components/NtrpRatingField';
+import { NtrpDefinitionsLink, NtrpRatingSelect } from '@/components/NtrpRatingField';
 
 export default function ProfilePage() {
   const { checkUserAuth } = useAuth();
@@ -62,6 +62,7 @@ export default function ProfilePage() {
       city,
       state,
       phone: u.phone || '',
+      ntrp_rating: u.ntrp_rating != null ? String(u.ntrp_rating) : '',
     });
 
     const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
@@ -86,12 +87,13 @@ export default function ProfilePage() {
     const lastName = form.last_name.trim();
     const fullName = [firstName, lastName].filter(Boolean).join(' ');
     const location = `${form.city.trim()}, ${form.state.trim()}`;
-    await supabase.from('profiles').update({ first_name: firstName, last_name: lastName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone }).eq('id', user.id);
+    const ntrpRating = form.ntrp_rating ? parseFloat(form.ntrp_rating) : null;
+    await supabase.from('profiles').update({ first_name: firstName, last_name: lastName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone, ntrp_rating: ntrpRating }).eq('id', user.id);
     if (membership) {
       await supabase.from('ladder_memberships').update({ display_name: fullName, location, city: form.city.trim(), state: form.state.trim() }).eq('id', membership.id);
     }
     // Update local user state immediately and refresh global auth context
-    setUser(prev => ({ ...prev, first_name: firstName, last_name: lastName, full_name: fullName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone }));
+    setUser(prev => ({ ...prev, first_name: firstName, last_name: lastName, full_name: fullName, location, city: form.city.trim(), state: form.state.trim(), phone: form.phone, ntrp_rating: ntrpRating }));
     await checkUserAuth();
     setSaving(false);
     setEditing(false);
@@ -278,6 +280,11 @@ export default function ProfilePage() {
                   placeholder="(555) 555-5555"
                 />
               </div>
+              <NtrpRatingSelect
+                value={form.ntrp_rating}
+                onValueChange={value => setForm(f => ({ ...f, ntrp_rating: value }))}
+                required={false}
+              />
             </>
           ) : (
             <div className="space-y-3">

@@ -14,7 +14,13 @@ const VALUE_PROPS = [
   "Every match counts toward your standing",
   "Play on your schedule—no leagues or weekly commitments",
   "Compete, improve, and earn your spot at the top",
-  "Join for just $25 a season",
+  "Join for just $25 a season - your contribution supports these charities",
+];
+
+const CHARITIES = [
+  { src: "/aceing-autism.png", alt: "ACEing Autism", href: "https://aceingautism.org/" },
+  { src: "/move-united.png", alt: "Move United", href: "https://moveunitedsport.org/" },
+  { src: "/so-chabe-foundation.webp", alt: "So Chabe Foundation", href: "https://sochabe.org/" },
 ];
 
 const STATE = "New York";
@@ -46,10 +52,6 @@ function NavyPanel() {
         </div>
       </div>
 
-      <div className="relative mt-8 text-base font-extrabold tracking-[.14em] text-[#6ee06a]">
-        LADDER LOGIN
-      </div>
-
       <div className="relative mt-4 max-w-[560px]">
         <h2 className="text-4xl md:text-5xl font-bold text-white">Play. Compete. Climb.</h2>
         <p className="mt-3 text-lg text-white/75">
@@ -65,8 +67,18 @@ function NavyPanel() {
         </ul>
       </div>
 
-      <div className="relative mt-28 text-xl font-semibold text-white">
-        Every entry fee supports multiple charities.
+      <div className="relative mt-auto flex items-center gap-3 pt-8">
+        {CHARITIES.map((c) => (
+          <a
+            key={c.alt}
+            href={c.href || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-14 flex-1 items-center justify-center rounded-lg bg-white p-2 transition-opacity hover:opacity-90"
+          >
+            <img src={c.src} alt={c.alt} className="max-h-full max-w-full object-contain" />
+          </a>
+        ))}
       </div>
     </aside>
   );

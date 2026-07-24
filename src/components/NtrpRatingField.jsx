@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 
 export const NTRP_VALUES = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5'];
 
@@ -32,17 +31,24 @@ const NTRP_DEFINITIONS = [
   },
 ];
 
-export function NtrpDefinitionsDialog({ open, onOpenChange }) {
+function NtrpInfoHoverCard() {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>NTRP Rating Definitions</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[80vh] space-y-5 overflow-y-auto pr-1">
+    <HoverCard openDelay={150}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          aria-label="NTRP rating definitions"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/50 text-[10px] font-bold leading-none text-muted-foreground hover:border-muted-foreground hover:text-foreground"
+        >
+          ?
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-96 max-h-[70vh] overflow-y-auto">
+        <h4 className="mb-3 text-sm font-bold text-foreground">NTRP Rating Definitions</h4>
+        <div className="space-y-5">
           {NTRP_DEFINITIONS.map((group) => (
             <div key={group.heading}>
-              <h4 className="mb-2 text-sm font-bold text-foreground">{group.heading}</h4>
+              <h5 className="mb-2 text-sm font-bold text-foreground">{group.heading}</h5>
               <ul className="space-y-2">
                 {group.items.map((item) => (
                   <li key={item.value} className="text-sm text-muted-foreground">
@@ -53,24 +59,17 @@ export function NtrpDefinitionsDialog({ open, onOpenChange }) {
             </div>
           ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
 export function NtrpDefinitionsLink({ children = 'NTRP Self-Rating', className = '' }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`text-primary underline-offset-2 hover:underline ${className}`}
-      >
-        {children}
-      </button>
-      <NtrpDefinitionsDialog open={open} onOpenChange={setOpen} />
-    </>
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
+      <span>{children}</span>
+      <NtrpInfoHoverCard />
+    </span>
   );
 }
 
