@@ -36,22 +36,11 @@ function formatRaised(amount) {
 function NavyPanel() {
   return (
     <aside className="relative shrink-0 overflow-hidden bg-[#0d1526] px-6 py-10 md:w-[35%] md:min-w-[420px] md:max-w-[640px] md:px-11 md:py-14 flex flex-col">
-      <div className="relative mb-8 self-start">
-        <div className="flex items-center gap-3">
-          <span className="text-5xl font-extrabold tracking-wide text-white">BREAK</span>
-          <svg viewBox="0 0 24 24" className="h-9 w-9 shrink-0" aria-hidden="true">
-            <circle cx="12" cy="12" r="11" fill="#c9e61f" />
-            <path d="M12 1 C 6.5 6, 6.5 18, 12 23" fill="none" stroke="#fff" strokeWidth="1.4" />
-            <path d="M12 1 C 17.5 6, 17.5 18, 12 23" fill="none" stroke="#fff" strokeWidth="1.4" />
-          </svg>
-          <span className="text-5xl font-extrabold tracking-wide text-white">POINT</span>
-        </div>
-        <div className="mt-2 flex items-center gap-3">
-          <span className="h-px flex-1 bg-[#6ee06a]" />
-          <span className="text-2xl font-bold tracking-[.25em] text-[#6ee06a]">WESTCHESTER</span>
-          <span className="h-px flex-1 bg-[#6ee06a]" />
-        </div>
-      </div>
+      <img
+        src="/BPW_OptionA_NormalA_UseOnDark_900x300_transparent.png"
+        alt="Breakpoint Westchester"
+        className="relative mb-8 h-auto w-64 self-start object-contain"
+      />
 
       <div className="relative mt-4 max-w-[560px]">
         <h2 className="text-4xl md:text-5xl font-bold text-white">Play. Compete. Climb.</h2>

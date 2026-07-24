@@ -91,7 +91,7 @@ export default function Layout() {
       <div className="px-1 py-2 border-b border-white/10">
         <Link to="/" className="flex items-center justify-center">
           <img
-            src="/logo.png"
+            src="/BPW_OptionA_NormalA_UseOnDark_600x200_transparent.png"
             alt="Break Point Westchester"
             className="w-[90%] h-auto"
           />
