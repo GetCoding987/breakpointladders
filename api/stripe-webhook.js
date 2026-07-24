@@ -72,6 +72,7 @@ export default async function handler(req, res) {
 				membership_expires: getSeasonExpiryString(),
 				joined_date: new Date().toISOString().split('T')[0],
 				stripe_payment_id: session.id,
+				amount_paid: session.amount_total != null ? session.amount_total / 100 : null,
 			});
 		}
 

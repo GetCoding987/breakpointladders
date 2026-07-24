@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Loader2, User, Phone, CheckCircle2 } from "lucide-react";
@@ -25,12 +25,13 @@ const CHARITIES = [
 
 const STATE = "New York";
 
-const TOTAL_RAISED = 0;
-const totalRaisedDisplay = TOTAL_RAISED.toLocaleString("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-});
+function formatRaised(amount) {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+  });
+}
 
 function NavyPanel() {
   return (
@@ -105,6 +106,13 @@ export default function Login() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [totalRaised, setTotalRaised] = useState(0);
+
+  useEffect(() => {
+    supabase.rpc("get_total_raised").then(({ data, error: rpcError }) => {
+      if (!rpcError && typeof data === "number") setTotalRaised(data);
+    });
+  }, []);
 
   const switchMode = (next) => {
     setMode(next);
@@ -223,7 +231,7 @@ export default function Login() {
               RAISED FOR CHARITY
             </div>
             <div className="mt-1 text-6xl font-extrabold tabular-nums text-[#111]">
-              {totalRaisedDisplay}
+              {formatRaised(totalRaised)}
             </div>
           </div>
 

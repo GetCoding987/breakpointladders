@@ -55,6 +55,7 @@ export default async function handler(req, res) {
 			status: 'active',
 			membership_expires: getSeasonExpiryString(),
 			joined_date: new Date().toISOString().split('T')[0],
+			amount_paid: 0,
 		});
 
 		return res.status(200).json({ success: true, discount_percent: 100 });
