@@ -390,9 +390,7 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
     return name?.toLowerCase().includes(convoSearch.toLowerCase());
   });
 
-  const dmPartnerIds = new Set(threads.map(t => t.otherId));
   const filteredNewConvoMembers = members
-    .filter(m => !dmPartnerIds.has(m.user_id))
     .filter(m => !newConvoSearch || m.display_name?.toLowerCase().includes(newConvoSearch.toLowerCase()));
 
   const selectedGroup = selected?.type === 'group' ? groups.find(g => g.id === selected.key) : null;
