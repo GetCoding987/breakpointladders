@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase, getCurrentUser } from '@/lib/supabaseClient';
+import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { Camera, Snowflake, Sun, CreditCard, Save } from 'lucide-react';
+import { Camera, Snowflake, Sun, CreditCard, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PlayerAvatar from '@/components/PlayerAvatar';
@@ -14,7 +14,7 @@ import { getDisplayName } from '@/utils/userHelpers';
 import { NtrpDefinitionsLink, NtrpRatingSelect } from '@/components/NtrpRatingField';
 
 export default function ProfilePage() {
-  const { checkUserAuth } = useAuth();
+  const { checkUserAuth, logout } = useAuth();
   const [user, setUser] = useState(null);
   const [membership, setMembership] = useState(null);
   const [ladder, setLadder] = useState(null);
@@ -25,6 +25,10 @@ export default function ProfilePage() {
   const [freezeReturnDate, setFreezeReturnDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [formError, setFormError] = useState('');
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     load();
@@ -119,6 +123,19 @@ export default function ProfilePage() {
       no_response_streak: 0,
     }).eq('id', membership.id);
     load();
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeletingAccount(true);
+    setDeleteError('');
+    try {
+      await callApi('/api/delete-account', {});
+      await logout();
+    } catch (err) {
+      setDeleteError(err?.message || 'Failed to delete account. Please try again.');
+      setDeletingAccount(false);
+    }
   };
 
   const uploadAvatar = async (e) => {
@@ -389,6 +406,22 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Danger Zone */}
+      <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 mt-6">
+        <h3 className="font-bold mb-2 text-red-700">Danger Zone</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Permanently delete your account. This removes your profile, ladder membership, and match history. This cannot be undone.
+        </p>
+        <Button
+          onClick={() => setShowDeleteAccount(true)}
+          variant="outline"
+          className="gap-2 border-red-200 text-red-700 hover:bg-red-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete My Account
+        </Button>
+      </div>
+
       {/* Freeze Dialog */}
       <Dialog open={showFreeze} onOpenChange={setShowFreeze}>
         <DialogContent className="max-w-sm">
@@ -413,6 +446,40 @@ export default function ProfilePage() {
               <Button onClick={freezeAccount} className="bg-blue-600 hover:bg-blue-700 gap-2">
                 <Snowflake className="w-4 h-4" />
                 Freeze My Spot
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={showDeleteAccount} onOpenChange={(open) => { setShowDeleteAccount(open); if (!open) { setDeleteConfirmText(''); setDeleteError(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-red-600 font-medium">
+              This will permanently delete your account, profile, ladder membership, messages, challenges, and match history. This cannot be undone.
+            </p>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Type DELETE to confirm</label>
+              <Input
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+              />
+            </div>
+            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowDeleteAccount(false)}>Cancel</Button>
+              <Button
+                onClick={deleteAccount}
+                disabled={deleteConfirmText !== 'DELETE' || deletingAccount}
+                className="bg-red-600 hover:bg-red-700 text-white gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deletingAccount ? 'Deleting...' : 'Delete My Account'}
               </Button>
             </div>
           </div>
