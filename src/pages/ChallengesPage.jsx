@@ -54,12 +54,21 @@ export default function ChallengesPage() {
     const mine = (allChallenges || []).filter(c => c.challenger_id === u.id || c.opponent_id === u.id);
     setChallenges(mine.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
 
+    // Anyone already in a pending or accepted challenge (either side) can't be challenged
+    const busyUserIds = new Set();
+    (allChallenges || []).forEach(c => {
+      if (c.status === 'pending' || c.status === 'accepted') {
+        busyUserIds.add(c.challenger_id);
+        busyUserIds.add(c.opponent_id);
+      }
+    });
+
     const { data: allMems } = await withRetry(() => supabase.from('ladder_memberships').select('*').match({ ladder_id: mem.ladder_id }));
     const window = 10;
     const myRank = mem.rank || 999;
     const isTop5 = myRank <= 5;
     const eligible = (allMems || []).filter(m => {
-      if (m.user_id === u.id || m.status !== 'active') return false;
+      if (m.user_id === u.id || m.status !== 'active' || busyUserIds.has(m.user_id)) return false;
       const targetRank = m.rank || 999;
       if (targetRank < myRank) return (myRank - targetRank) <= window;
       // Top 5 players can also challenge up to 10 spots below them
@@ -84,6 +93,19 @@ export default function ChallengesPage() {
     if (alreadyPending) {
       setSubmitting(false);
       alert('You already have a pending challenge awaiting a response. You cannot send another until it is accepted or declined.');
+      return;
+    }
+
+    // Defensive re-check: the opponent might have become busy since eligiblePlayers loaded
+    const { data: opponentBusy } = await supabase
+      .from('challenges')
+      .select('id')
+      .match({ ladder_id: myMembership.ladder_id })
+      .in('status', ['pending', 'accepted'])
+      .or(`challenger_id.eq.${selectedOpponent.user_id},opponent_id.eq.${selectedOpponent.user_id}`);
+    if (opponentBusy?.length > 0) {
+      setSubmitting(false);
+      alert('This player already has a pending or accepted challenge. Please choose someone else.');
       return;
     }
 
@@ -114,7 +136,7 @@ export default function ChallengesPage() {
   };
 
   const acceptChallenge = async (challenge) => {
-    await supabase.from('challenges').update({ status: 'accepted' }).eq('id', challenge.id);
+    await supabase.from('challenges').update({ status: 'accepted', accepted_date: new Date().toISOString() }).eq('id', challenge.id);
     if (myMembership) {
       await supabase.from('ladder_memberships').update({ no_response_streak: 0 }).eq('id', myMembership.id);
     }

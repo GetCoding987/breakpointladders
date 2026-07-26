@@ -158,6 +158,7 @@ export default function MatchesPage() {
       status: 'pending_confirmation',
       confirmation_deadline: deadline,
       ranking_updated: false,
+      is_retirement: !!submitForm.retiredBy,
     }).select().single();
 
     const otherId = challenge
@@ -362,6 +363,9 @@ export default function MatchesPage() {
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4">
                   <p className="text-sm font-bold">{m.score || '—'}</p>
+                  {m.is_retirement && (
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">Retired</span>
+                  )}
                   {m.status === 'pending_confirmation' ? (
                     <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">Pending</span>
                   ) : m.status === 'disputed' ? (

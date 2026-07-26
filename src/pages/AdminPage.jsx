@@ -15,7 +15,6 @@ import AdminMessagesTab from '@/components/AdminMessagesTab';
 import AdminPromoCodesTab from '@/components/AdminPromoCodesTab';
 import AdminUsersTab from '@/components/AdminUsersTab';
 import { getDisplayName } from '@/utils/userHelpers';
-import { NTRP_VALUES } from '@/components/NtrpRatingField';
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -111,11 +110,6 @@ export default function AdminPage() {
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
-  const updateMemberNtrp = async (mem, ntrp) => {
-    await supabase.from('profiles').update({ ntrp_rating: ntrp ? parseFloat(ntrp) : null }).eq('id', mem.user_id);
-    if (selectedLadder) loadLadderData(selectedLadder);
-  };
-
   const removePlayer = async () => {
     if (!removeTarget) return;
     setRemoving(true);
@@ -172,6 +166,15 @@ export default function AdminPage() {
 
       // Reset wins/losses on all memberships — keep ranks/positions intact
       await supabase.from('ladder_memberships').update({ wins: 0, losses: 0 }).match({ ladder_id: selectedLadder.id });
+
+      // Players who didn't renew before this season started have skipped an
+      // entire season — mark them inactive (reversible; they drop off the
+      // ladder and can't be challenged, matching the Rules page).
+      const today = new Date().toISOString().split('T')[0];
+      await supabase.from('ladder_memberships')
+        .update({ status: 'inactive' })
+        .match({ ladder_id: selectedLadder.id, status: 'active' })
+        .lt('membership_expires', today);
 
       // Delete all messages between ladder members
       const memberIds = memberships.map(m => m.user_id);
@@ -241,6 +244,8 @@ export default function AdminPage() {
   }
 
   const disputedMatches = matches.filter(m => m.status === 'disputed');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const lapsedCount = memberships.filter(m => m.status === 'active' && m.membership_expires && m.membership_expires < todayStr).length;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -391,19 +396,9 @@ export default function AdminPage() {
                           className="w-14 h-7 text-xs text-center"
                         />
                       </div>
-                      <Select
-                        value={memberUser?.ntrp_rating != null ? Number(memberUser.ntrp_rating).toFixed(1) : ""}
-                        onValueChange={val => updateMemberNtrp(mem, val)}
-                      >
-                        <SelectTrigger className="h-7 w-20 text-xs">
-                          <SelectValue placeholder="NTRP" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {NTRP_VALUES.map(v => (
-                            <SelectItem key={v} value={v}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <span className="h-7 w-20 flex items-center justify-center text-xs text-muted-foreground border border-border rounded-md" title="NTRP is set on the player's profile">
+                        {memberUser?.ntrp_rating != null ? Number(memberUser.ntrp_rating).toFixed(1) : '—'}
+                      </span>
                       <Select value={mem.status} onValueChange={val => updateMemberStatus(mem, val)}>
                         <SelectTrigger className="h-7 w-32 text-xs">
                           <SelectValue />
@@ -651,6 +646,11 @@ export default function AdminPage() {
             <p className="text-sm font-medium text-green-700">
               ✓ Ladder positions (ranks) will be preserved.
             </p>
+            {lapsedCount > 0 && (
+              <p className="text-sm font-medium text-amber-700">
+                {lapsedCount} player{lapsedCount === 1 ? '' : 's'} with an expired, non-renewed membership will be marked inactive.
+              </p>
+            )}
             <p className="text-sm text-red-600 font-medium">
               This action cannot be undone. Make sure the season is truly over before proceeding.
             </p>

@@ -42,7 +42,7 @@ export default function RulesPage() {
       <div className="space-y-4">
         <Section title="Joining the Ladder">
           <ul className="space-y-2">
-            <Rule>New players always begin at the <Bold>bottom of the ladder</Bold>.</Rule>
+            <Rule>New players are placed based on their <Bold>NTRP self-rating</Bold> — just below the lowest-ranked existing player rated at or above them, or at the <Bold>bottom of the ladder</Bold> if no such player exists.</Rule>
             <Rule>Players may participate only in the ladder(s) for which they are registered.</Rule>
             <Rule>Ladder rankings are determined solely by each player's position on the ladder.</Rule>
           </ul>
@@ -55,7 +55,7 @@ export default function RulesPage() {
             <Rule>At the conclusion of each season, players may choose whether to renew their subscription.</Rule>
             <Rule>Players may renew <Bold>at any time after a season ends, before the start of the next season, or during the following season</Bold> while retaining their current ladder position.</Rule>
             <Rule>Players who do <Bold>not</Bold> renew and skip an entire season will be removed from the ladder.</Rule>
-            <Rule>Players removed after missing an entire season may rejoin at any time by purchasing a new subscription; however, they will re-enter the ladder at the <Bold>bottom</Bold>.</Rule>
+            <Rule>Players removed after missing an entire season may rejoin at any time by purchasing a new subscription; they'll be placed according to the same <Bold>NTRP-based placement</Bold> as any new player.</Rule>
           </ul>
         </Section>
 
