@@ -254,6 +254,24 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold">Admin Panel</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Manage ladders, players, and matches</p>
         </div>
+        {ladders.length > 0 && (
+          <Select
+            value={selectedLadder?.id || ''}
+            onValueChange={val => {
+              const ladder = ladders.find(l => l.id === val);
+              if (ladder) loadLadderData(ladder);
+            }}
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Select a ladder" />
+            </SelectTrigger>
+            <SelectContent>
+              {ladders.map(ladder => (
+                <SelectItem key={ladder.id} value={ladder.id}>{ladder.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Summary stats */}
@@ -317,14 +335,6 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => loadLadderData(ladder)}
-                    className="h-8 text-xs"
-                  >
-                    Select
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
