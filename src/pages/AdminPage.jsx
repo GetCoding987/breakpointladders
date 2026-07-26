@@ -34,6 +34,7 @@ export default function AdminPage() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -118,18 +119,28 @@ export default function AdminPage() {
   const removePlayer = async () => {
     if (!removeTarget) return;
     setRemoving(true);
+    setRemoveError('');
     const userId = removeTarget.user_id;
-    try {
-      await supabase.from('ladder_memberships').delete().eq('id', removeTarget.id);
-      await supabase.from('messages').delete().match({ sender_id: userId });
-      await supabase.from('messages').delete().match({ recipient_id: userId });
-      await supabase.from('challenges').delete().match({ challenger_id: userId });
-      await supabase.from('challenges').delete().match({ opponent_id: userId });
-      await supabase.from('matches').delete().match({ player1_id: userId });
-      await supabase.from('matches').delete().match({ player2_id: userId });
-    } catch (err) {
-      console.warn('Remove player failed:', err?.message);
+
+    const steps = [
+      () => supabase.from('ladder_memberships').delete().eq('id', removeTarget.id),
+      () => supabase.from('messages').delete().match({ sender_id: userId }),
+      () => supabase.from('messages').delete().match({ recipient_id: userId }),
+      () => supabase.from('challenges').delete().match({ challenger_id: userId }),
+      () => supabase.from('challenges').delete().match({ opponent_id: userId }),
+      () => supabase.from('matches').delete().match({ player1_id: userId }),
+      () => supabase.from('matches').delete().match({ player2_id: userId }),
+    ];
+
+    for (const step of steps) {
+      const { error } = await step();
+      if (error) {
+        setRemoveError(error.message);
+        setRemoving(false);
+        return;
+      }
     }
+
     setRemoving(false);
     setRemoveTarget(null);
     if (selectedLadder) loadLadderData(selectedLadder);
@@ -393,7 +404,7 @@ export default function AdminPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setRemoveTarget(mem)}
+                        onClick={() => { setRemoveTarget(mem); setRemoveError(''); }}
                         className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 gap-1"
                       >
                         <Trash2 className="w-3 h-3" /> Remove
@@ -594,6 +605,9 @@ export default function AdminPage() {
             <p className="text-sm text-red-600 font-medium">
               This will permanently delete their ladder membership, all their messages, challenges, and match data. This cannot be undone.
             </p>
+            {removeError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{removeError}</p>
+            )}
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setRemoveTarget(null)}>Cancel</Button>
               <Button
