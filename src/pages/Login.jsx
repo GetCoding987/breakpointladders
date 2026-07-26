@@ -129,7 +129,7 @@ export default function Login() {
     setGender(user.gender || "");
     setCity(user.city || "");
     setPhone(user.phone || "");
-    setNtrpRating(user.ntrp_rating != null ? String(user.ntrp_rating) : "");
+    setNtrpRating(user.ntrp_rating != null ? Number(user.ntrp_rating).toFixed(1) : "");
     setMode("complete-profile");
   }, [authChecked, user, navigate]);
 

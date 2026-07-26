@@ -361,7 +361,7 @@ export default function AdminPage() {
                         />
                       </div>
                       <Select
-                        value={memberUser?.ntrp_rating != null ? String(memberUser.ntrp_rating) : ""}
+                        value={memberUser?.ntrp_rating != null ? Number(memberUser.ntrp_rating).toFixed(1) : ""}
                         onValueChange={val => updateMemberNtrp(mem, val)}
                       >
                         <SelectTrigger className="h-7 w-20 text-xs">

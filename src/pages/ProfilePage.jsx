@@ -66,7 +66,7 @@ export default function ProfilePage() {
       city,
       state,
       phone: u.phone || '',
-      ntrp_rating: u.ntrp_rating != null ? String(u.ntrp_rating) : '',
+      ntrp_rating: u.ntrp_rating != null ? Number(u.ntrp_rating).toFixed(1) : '',
     });
 
     const { data: mems } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
