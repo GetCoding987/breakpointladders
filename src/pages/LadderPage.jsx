@@ -10,6 +10,7 @@ import FreezeStatusBadge from '@/components/FreezeStatusBadge';
 import { getDisplayName } from '@/utils/userHelpers';
 import { useNavigate } from 'react-router-dom';
 import PlayerHoverCard from '@/components/PlayerHoverCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function LadderPage() {
   const navigate = useNavigate();
@@ -119,21 +120,22 @@ export default function LadderPage() {
         </div>
         {/* Ladder selector */}
         {ladders.length > 1 && (
-          <div className="flex gap-2 flex-wrap">
-            {ladders.map(l => (
-              <button
-                key={l.id}
-                onClick={() => loadLadder(l, myMembership)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  selectedLadder?.id === l.id
-                    ? 'bg-[hsl(217,72%,16%)] text-white'
-                    : 'bg-white border border-border hover:bg-muted/50'
-                }`}
-              >
-                {l.name}
-              </button>
-            ))}
-          </div>
+          <Select
+            value={selectedLadder?.id || ''}
+            onValueChange={val => {
+              const ladder = ladders.find(l => l.id === val);
+              if (ladder) loadLadder(ladder, myMembership);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-auto sm:min-w-[320px]">
+              <SelectValue placeholder="Select a ladder" />
+            </SelectTrigger>
+            <SelectContent>
+              {ladders.map(l => (
+                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </div>
 

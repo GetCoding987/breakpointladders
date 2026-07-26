@@ -262,7 +262,7 @@ export default function AdminPage() {
               if (ladder) loadLadderData(ladder);
             }}
           >
-            <SelectTrigger className="w-64">
+            <SelectTrigger className="w-full sm:w-auto sm:min-w-[320px]">
               <SelectValue placeholder="Select a ladder" />
             </SelectTrigger>
             <SelectContent>

@@ -103,7 +103,7 @@ export default function AdminPromoCodesTab() {
   );
 
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="w-full">
       <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg flex items-center gap-2">

@@ -136,7 +136,7 @@ export default function AdminUsersTab({ currentUserId }) {
   );
 
   return (
-    <div className="max-w-4xl mx-auto w-full">
+    <div className="w-full">
       <div className="bg-white rounded-2xl border border-border overflow-hidden shadow-sm">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
           <h2 className="font-bold text-lg flex items-center gap-2">

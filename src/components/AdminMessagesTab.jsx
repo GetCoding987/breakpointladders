@@ -356,7 +356,7 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const selectedDmOther = selected?.type === 'dm' ? getOther(selected.key) : null;
 
   return (
-    <div className="max-w-5xl mx-auto w-full">
+    <div className="w-full">
       {/* Post Announcement */}
       <div className="bg-white rounded-xl border border-border p-5 mb-6 shadow-sm">
         <h2 className="font-bold text-lg mb-1 flex items-center gap-2">
