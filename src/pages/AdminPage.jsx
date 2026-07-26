@@ -520,7 +520,7 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="users">
-          <AdminUsersTab />
+          <AdminUsersTab currentUserId={user?.id} />
         </TabsContent>
       </Tabs>
 
