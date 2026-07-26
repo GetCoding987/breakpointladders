@@ -55,7 +55,7 @@ export default async function handler(req, res) {
 
 		let discount_percent = 0;
 		if (promo_code) {
-			const match = findPromoCode(promo_code);
+			const match = await findPromoCode(supabaseAdmin, promo_code);
 			if (match && match.discount_percent < 100) {
 				discount_percent = match.discount_percent;
 			}

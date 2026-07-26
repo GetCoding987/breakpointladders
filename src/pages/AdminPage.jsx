@@ -12,6 +12,7 @@ import FreezeStatusBadge from '@/components/FreezeStatusBadge';
 import { formatEasternDateFull, formatDateOnly } from '@/utils/easternTime';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AdminMessagesTab from '@/components/AdminMessagesTab';
+import AdminPromoCodesTab from '@/components/AdminPromoCodesTab';
 import { getDisplayName } from '@/utils/userHelpers';
 import { NTRP_VALUES } from '@/components/NtrpRatingField';
 
@@ -251,6 +252,7 @@ export default function AdminPage() {
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="challenges">Challenges</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="promo-codes">Promo Codes</TabsTrigger>
         </TabsList>
 
         {/* Ladders tab */}
@@ -498,6 +500,10 @@ export default function AdminPage() {
         {/* Messages tab */}
         <TabsContent value="messages">
           <AdminMessagesTab user={user} ladderId={selectedLadder?.id} />
+        </TabsContent>
+
+        <TabsContent value="promo-codes">
+          <AdminPromoCodesTab />
         </TabsContent>
       </Tabs>
 

@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 			return res.status(400).json({ error: 'Missing required fields' });
 		}
 
-		const match = findPromoCode(promo_code);
+		const match = await findPromoCode(supabaseAdmin, promo_code);
 		if (!match) {
 			return res.status(400).json({ error: 'Invalid promo code' });
 		}
