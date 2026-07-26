@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Loader2, User, Phone, CheckCircle2 } from "lucide-react";
@@ -96,6 +96,10 @@ export default function Login() {
   const [ntrpRating, setNtrpRating] = useState("");
   const [confirmationSent, setConfirmationSent] = useState(false);
 
+  // Forgot-password fields
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [totalRaised, setTotalRaised] = useState(0);
@@ -132,6 +136,7 @@ export default function Login() {
   const switchMode = (next) => {
     setMode(next);
     setError("");
+    setResetSent(false);
   };
 
   const handleSubmit = async (e) => {
@@ -197,6 +202,21 @@ export default function Login() {
       setError(err.message || "Registration failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    } catch {
+      // Always show success regardless
+    } finally {
+      setLoading(false);
+      setResetSent(true);
     }
   };
 
@@ -321,15 +341,21 @@ export default function Login() {
               <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Create your account</h1>
               <p className="mt-1 text-sm text-[#666]">Sign up to get started</p>
             </>
-          ) : (
+          ) : mode === "complete-profile" ? (
             <>
               <div className="text-[11px] font-extrabold tracking-[.12em] text-[#2f9e57]">GETTING STARTED</div>
               <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Complete your profile</h1>
               <p className="mt-1 text-sm text-[#666]">Please fill in your details to continue</p>
             </>
+          ) : (
+            <>
+              <div className="text-[11px] font-extrabold tracking-[.12em] text-[#2f9e57]">RESET PASSWORD</div>
+              <h1 className="mt-2.5 text-2xl font-extrabold text-[#111]">Reset password</h1>
+              <p className="mt-1 text-sm text-[#666]">We'll send you a link to reset it</p>
+            </>
           )}
 
-          {mode !== "complete-profile" && (
+          {mode !== "complete-profile" && mode !== "forgot-password" && (
             <>
               <button
                 type="button"
@@ -375,9 +401,13 @@ export default function Login() {
                   <label htmlFor="password" className="text-sm font-semibold text-[#333]">
                     Password
                   </label>
-                  <Link to="/forgot-password" className="text-xs font-semibold text-[#2f9e57] hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => switchMode("forgot-password")}
+                    className="text-xs font-semibold text-[#2f9e57] hover:underline"
+                  >
                     Forgot password?
-                  </Link>
+                  </button>
                 </div>
                 <input
                   id="password"
@@ -551,7 +581,7 @@ export default function Login() {
                 )}
               </button>
             </form>
-          ) : (
+          ) : mode === "complete-profile" ? (
             <form onSubmit={handleCompleteProfile} className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -649,6 +679,43 @@ export default function Login() {
                 )}
               </button>
             </form>
+          ) : resetSent ? (
+            <p className="text-sm text-[#666]">
+              If an account exists with that email, you'll receive a password reset link shortly.
+            </p>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-3.5">
+              <div>
+                <label htmlFor="resetEmail" className="mb-1.5 block text-sm font-semibold text-[#333]">
+                  Email address
+                </label>
+                <input
+                  id="resetEmail"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  placeholder="you@example.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-[#e2e2e0] px-3 py-2.5 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-[#0d1526] py-3 text-sm font-bold text-white disabled:opacity-70"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send reset link"
+                )}
+              </button>
+            </form>
           )}
 
           {mode === "signin" ? (
@@ -671,6 +738,16 @@ export default function Login() {
                 className="font-bold text-[#2f9e57] hover:underline"
               >
                 Log in
+              </button>
+            </p>
+          ) : mode === "forgot-password" ? (
+            <p className="mt-4 text-center text-sm text-[#666]">
+              <button
+                type="button"
+                onClick={() => switchMode("signin")}
+                className="font-bold text-[#2f9e57] hover:underline"
+              >
+                ← Back to log in
               </button>
             </p>
           ) : null}
