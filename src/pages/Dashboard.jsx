@@ -310,7 +310,7 @@ export default function Dashboard() {
               {announcements.map((ann) => (
                 <div key={ann.id} className="px-3 py-2">
                   <p className="text-xs font-semibold text-foreground">{ann.title}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{ann.body}</p>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{ann.body}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     {ann.created_date ? formatEasternDate(ann.created_date) : ''}
                   </p>

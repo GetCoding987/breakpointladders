@@ -13,6 +13,7 @@ import { formatEasternDateFull, formatDateOnly } from '@/utils/easternTime';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AdminMessagesTab from '@/components/AdminMessagesTab';
 import AdminPromoCodesTab from '@/components/AdminPromoCodesTab';
+import AdminUsersTab from '@/components/AdminUsersTab';
 import { getDisplayName } from '@/utils/userHelpers';
 import { NTRP_VALUES } from '@/components/NtrpRatingField';
 
@@ -253,6 +254,7 @@ export default function AdminPage() {
           <TabsTrigger value="challenges">Challenges</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="promo-codes">Promo Codes</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
 
         {/* Ladders tab */}
@@ -504,6 +506,10 @@ export default function AdminPage() {
 
         <TabsContent value="promo-codes">
           <AdminPromoCodesTab />
+        </TabsContent>
+
+        <TabsContent value="users">
+          <AdminUsersTab />
         </TabsContent>
       </Tabs>
 
