@@ -10,7 +10,7 @@ import { formatEasternDateFull, formatDateOnly } from '@/utils/easternTime';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import { getDisplayName } from '@/utils/userHelpers';
+import { getDisplayName, toSentenceCase } from '@/utils/userHelpers';
 import { NtrpDefinitionsLink, NtrpRatingSelect } from '@/components/NtrpRatingField';
 
 export default function ProfilePage() {
@@ -229,11 +229,11 @@ export default function ProfilePage() {
               <div className="grid grid-cols-2 gap-4">
                  <div>
                    <label className="text-sm font-medium mb-1.5 block">First name <span className="text-red-500">*</span></label>
-                   <Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} placeholder="First name" />
+                   <Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: toSentenceCase(e.target.value) }))} placeholder="First name" />
                  </div>
                  <div>
                    <label className="text-sm font-medium mb-1.5 block">Last name <span className="text-red-500">*</span></label>
-                   <Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} placeholder="Last name" />
+                   <Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: toSentenceCase(e.target.value) }))} placeholder="Last name" />
                  </div>
                </div>
                <div>

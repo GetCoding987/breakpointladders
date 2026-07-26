@@ -7,6 +7,7 @@ import GoogleIcon from "@/components/GoogleIcon";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NtrpRatingSelect } from "@/components/NtrpRatingField";
+import { toSentenceCase } from "@/utils/userHelpers";
 
 const VALUE_PROPS = [
   "Challenge players and climb the rankings",
@@ -451,7 +452,7 @@ export default function Login() {
                       autoFocus
                       placeholder="Jane"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => setFirstName(toSentenceCase(e.target.value))}
                       required
                       className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
                     />
@@ -469,7 +470,7 @@ export default function Login() {
                       autoComplete="family-name"
                       placeholder="Smith"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => setLastName(toSentenceCase(e.target.value))}
                       required
                       className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
                     />
@@ -597,7 +598,7 @@ export default function Login() {
                       autoFocus
                       placeholder="Jane"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => setFirstName(toSentenceCase(e.target.value))}
                       required
                       className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
                     />
@@ -615,7 +616,7 @@ export default function Login() {
                       autoComplete="family-name"
                       placeholder="Smith"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => setLastName(toSentenceCase(e.target.value))}
                       required
                       className="w-full rounded-lg border border-[#e2e2e0] py-2.5 pl-9 pr-3 text-sm text-[#111] placeholder:text-[#999] focus:outline-none focus:ring-2 focus:ring-[#2f9e57]"
                     />

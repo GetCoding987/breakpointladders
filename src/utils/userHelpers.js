@@ -1,4 +1,13 @@
 /**
+ * Formats a typed name to sentence case as the user types: first letter
+ * capitalized, everything else lowercase (e.g. "jANE" -> "Jane").
+ */
+export function toSentenceCase(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+/**
  * Formats a raw name string that might be an email-style username
  * (e.g. "kiran.vira" or "kiran_vira") into "Kiran Vira".
  */
