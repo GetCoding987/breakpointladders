@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, callApi } from '@/lib/supabaseClient';
-import { Megaphone, Send, Edit, Trash2 } from 'lucide-react';
+import { Megaphone, Send, Edit, Trash2, Search, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { formatEasternDateTime } from '@/utils/easternTime';
+import PlayerAvatar from '@/components/PlayerAvatar';
+import { getDisplayName } from '@/utils/userHelpers';
+import { formatEasternDateTime, formatEasternTime, formatEasternDate, parseDateUTC } from '@/utils/easternTime';
 
 export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const [ladderId, setLadderId] = useState(propLadderId || null);
@@ -26,6 +28,17 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const [editBody, setEditBody] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Conversations (multi-thread admin inbox)
+  const [threads, setThreads] = useState([]);
+  const [selectedOtherId, setSelectedOtherId] = useState(null);
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [convoSearch, setConvoSearch] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [showNewConvo, setShowNewConvo] = useState(false);
+  const [newConvoSearch, setNewConvoSearch] = useState('');
+  const messagesEndRef = useRef(null);
+
   useEffect(() => {
     if (propLadderId) setLadderId(propLadderId);
   }, [propLadderId]);
@@ -34,6 +47,16 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
     if (user && ladderId) loadData();
     else if (user && !propLadderId) load();
   }, [user, ladderId]);
+
+  useEffect(() => {
+    if (user) loadThreads();
+  }, [user]);
+
+  useEffect(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
+    }, 50);
+  }, [threadMessages, selectedOtherId]);
 
   const load = async () => {
     const { data: myMems } = await supabase.from('ladder_memberships').select('*').match({ user_id: user.id });
@@ -125,10 +148,120 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
     setMsgContent('');
     setMsgRecipient('all');
     setSendingMsg(false);
+    loadThreads();
   };
 
+  const loadThreads = async () => {
+    const [{ data: sent }, { data: received }] = await Promise.all([
+      supabase.from('messages').select('*').match({ sender_id: user.id }),
+      supabase.from('messages').select('*').match({ recipient_id: user.id }),
+    ]);
+
+    const allMsgs = [...(sent || []), ...(received || [])];
+    const threadMap = {};
+    allMsgs.forEach(msg => {
+      const otherId = msg.sender_id === user.id ? msg.recipient_id : msg.sender_id;
+      if (!threadMap[otherId]) threadMap[otherId] = [];
+      threadMap[otherId].push(msg);
+    });
+
+    const threadList = Object.entries(threadMap).map(([otherId, msgs]) => ({
+      otherId,
+      messages: msgs.sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date)),
+      lastMessage: msgs.sort((a, b) => parseDateUTC(b.created_date) - parseDateUTC(a.created_date))[0],
+      unreadCount: msgs.filter(m => m.recipient_id === user.id && !m.read).length,
+    })).sort((a, b) => parseDateUTC(b.lastMessage?.created_date) - parseDateUTC(a.lastMessage?.created_date));
+
+    setThreads(threadList);
+  };
+
+  const openThread = async (thread) => {
+    setSelectedOtherId(thread.otherId);
+    setThreadMessages(thread.messages);
+
+    const unread = thread.messages.filter(m => m.recipient_id === user.id && !m.read);
+    if (unread.length === 0) return;
+
+    for (const msg of unread) {
+      await supabase.from('messages').update({ read: true }).eq('id', msg.id);
+    }
+
+    setThreads(prev => prev.map(t =>
+      t.otherId === thread.otherId
+        ? { ...t, unreadCount: 0, messages: t.messages.map(m => ({ ...m, read: true })) }
+        : t
+    ));
+  };
+
+  const startConversation = (otherId) => {
+    setShowNewConvo(false);
+    setNewConvoSearch('');
+    const existing = threads.find(t => t.otherId === otherId);
+    if (existing) {
+      openThread(existing);
+    } else {
+      setSelectedOtherId(otherId);
+      setThreadMessages([]);
+    }
+  };
+
+  const sendReply = async () => {
+    if (!newMessage.trim() || !selectedOtherId) return;
+    setSendingReply(true);
+
+    const { data: msg } = await supabase.from('messages').insert({
+      sender_id: user.id,
+      recipient_id: selectedOtherId,
+      content: newMessage.trim(),
+      read: false,
+      thread_id: [user.id, selectedOtherId].sort().join('_'),
+    }).select().single();
+
+    try {
+      await callApi('/api/notify', {
+        user_id: selectedOtherId,
+        type: 'new_message',
+        title: 'Message from Admin',
+        body: newMessage.trim().slice(0, 100),
+      });
+    } catch (err) {
+      console.warn('Admin reply notify failed:', err?.message);
+    }
+
+    setNewMessage('');
+    setSendingReply(false);
+
+    const newMsg = { ...msg, created_date: msg?.created_date || new Date().toISOString() };
+    const updated = [...threadMessages, newMsg];
+    setThreadMessages(updated);
+    setThreads(prev => {
+      const exists = prev.find(t => t.otherId === selectedOtherId);
+      const next = exists
+        ? prev.map(t => t.otherId === selectedOtherId ? { ...t, messages: updated, lastMessage: newMsg } : t)
+        : [...prev, { otherId: selectedOtherId, messages: updated, lastMessage: newMsg, unreadCount: 0 }];
+      return next.sort((a, b) => parseDateUTC(b.lastMessage?.created_date) - parseDateUTC(a.lastMessage?.created_date));
+    });
+  };
+
+  const memberMap = {};
+  members.forEach(m => { memberMap[m.user_id] = m; });
+  const getOther = (otherId) => {
+    const mem = memberMap[otherId];
+    return mem ? { id: otherId, full_name: mem.display_name, avatar_url: mem.avatar_url, location: mem.location } : { id: otherId };
+  };
+
+  const filteredThreads = threads.filter(t => {
+    if (!convoSearch) return true;
+    return getDisplayName(getOther(t.otherId))?.toLowerCase().includes(convoSearch.toLowerCase());
+  });
+
+  const threadPartnerIds = new Set(threads.map(t => t.otherId));
+  const filteredNewConvoMembers = members
+    .filter(m => !threadPartnerIds.has(m.user_id))
+    .filter(m => !newConvoSearch || m.display_name?.toLowerCase().includes(newConvoSearch.toLowerCase()));
+
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="max-w-5xl mx-auto w-full">
       {/* Post Announcement */}
       <div className="bg-white rounded-xl border border-border p-5 mb-6 shadow-sm">
         <h2 className="font-bold text-lg mb-1 flex items-center gap-2">
@@ -232,6 +365,175 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
           </div>
         </div>
       </div>
+
+      {/* Conversations */}
+      <div className="bg-white rounded-xl border border-border shadow-sm mt-6 overflow-hidden">
+        <div className="flex h-[600px]">
+          {/* Thread list */}
+          <div className={`w-full md:w-72 flex-shrink-0 border-r border-border flex flex-col ${selectedOtherId ? 'hidden md:flex' : 'flex'}`}>
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-bold flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-[hsl(217,72%,40%)]" />
+                  Conversations
+                </h2>
+                <Button size="sm" onClick={() => setShowNewConvo(true)} className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)]">
+                  New
+                </Button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search conversations..."
+                  value={convoSearch}
+                  onChange={e => setConvoSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-border">
+              {filteredThreads.map(thread => {
+                const other = getOther(thread.otherId);
+                const isSelected = selectedOtherId === thread.otherId;
+                return (
+                  <button
+                    key={thread.otherId}
+                    onClick={() => openThread(thread)}
+                    className={`w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors text-left ${isSelected ? 'bg-blue-50' : ''}`}
+                  >
+                    <PlayerAvatar user={other} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-sm truncate">{getDisplayName(other)}</p>
+                        {thread.lastMessage?.created_date && (
+                          <p className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                            {formatEasternDate(thread.lastMessage.created_date)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-xs text-muted-foreground truncate">{thread.lastMessage?.content}</p>
+                        {thread.unreadCount > 0 && (
+                          <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                            {thread.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+              {filteredThreads.length === 0 && (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  No conversations yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Thread view */}
+          <div className={`flex-1 flex flex-col ${!selectedOtherId ? 'hidden md:flex' : 'flex'}`}>
+            {selectedOtherId ? (
+              <>
+                <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+                  <button
+                    className="md:hidden mr-1 p-1.5 rounded-lg hover:bg-muted"
+                    onClick={() => setSelectedOtherId(null)}
+                  >
+                    ←
+                  </button>
+                  <PlayerAvatar user={getOther(selectedOtherId)} size="sm" />
+                  <p className="font-bold text-sm">{getDisplayName(getOther(selectedOtherId))}</p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-background">
+                  {threadMessages.map(msg => {
+                    const isMe = msg.sender_id === user.id;
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm ${
+                            isMe
+                              ? 'bg-[hsl(217,72%,16%)] text-white rounded-br-sm'
+                              : 'bg-white border border-border rounded-bl-sm'
+                          }`}>
+                            {msg.content}
+                          </div>
+                          <p className="text-xs text-muted-foreground px-1">
+                            {msg.created_date ? formatEasternTime(msg.created_date) : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+                <div className="p-3 border-t border-border">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={sendReply}
+                      disabled={!newMessage.trim() || sendingReply}
+                      className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] px-3"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-center p-8">
+                <div>
+                  <p className="font-semibold mb-1">Select a conversation</p>
+                  <p className="text-muted-foreground text-sm">Choose a player to view or reply</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* New Conversation Modal */}
+      <Dialog open={showNewConvo} onOpenChange={setShowNewConvo}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New Conversation</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search players..."
+                value={newConvoSearch}
+                onChange={e => setNewConvoSearch(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-border rounded-lg border border-border">
+              {filteredNewConvoMembers.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-4 text-center">No players found</p>
+              ) : (
+                filteredNewConvoMembers.map(m => (
+                  <button
+                    key={m.user_id}
+                    onClick={() => startConversation(m.user_id)}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors text-left"
+                  >
+                    <PlayerAvatar user={getOther(m.user_id)} size="sm" />
+                    <p className="font-semibold text-sm">{m.display_name}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Announcement Dialog */}
       <Dialog open={!!editingAnn} onOpenChange={() => setEditingAnn(null)}>
