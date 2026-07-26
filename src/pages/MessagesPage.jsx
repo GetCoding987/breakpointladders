@@ -108,9 +108,17 @@ export default function MessagesPage() {
         withRetry(() => supabase.from('challenges').select('*').match({ ladder_id: ladderId })),
       ]);
 
+      // ladder_memberships.location isn't always kept in sync with the
+      // player's profile — fall back to profiles.location when it's blank.
+      const memberIds = (allMems || []).map(m => m.user_id);
+      const { data: memberProfiles } = memberIds.length > 0
+        ? await withRetry(() => supabase.from('profiles').select('id, location').in('id', memberIds))
+        : { data: [] };
+      const profileLocationById = Object.fromEntries((memberProfiles || []).map(p => [p.id, p.location]));
+
       const map = {};
       (allMems || []).forEach(m => {
-        map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location };
+        map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location || profileLocationById[m.user_id] };
       });
       map[u.id] = u;
       setAllUsers(map);

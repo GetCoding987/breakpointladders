@@ -141,6 +141,22 @@ export default function AdminPage() {
       }
     }
 
+    // Close the rank gap left behind by the removed player.
+    const { data: below } = await supabase
+      .from('ladder_memberships')
+      .select('id, rank')
+      .eq('ladder_id', removeTarget.ladder_id)
+      .gt('rank', removeTarget.rank);
+    if (below?.length > 0) {
+      const { error: shiftError } = await supabase.rpc('update_ladder_ranks', {
+        p_ladder_id: removeTarget.ladder_id,
+        updates: below.map(m => ({ id: m.id, rank: m.rank - 1 })),
+      });
+      if (shiftError) {
+        alert(`Player removed, but ranks failed to shift: ${shiftError.message}`);
+      }
+    }
+
     setRemoving(false);
     setRemoveTarget(null);
     if (selectedLadder) loadLadderData(selectedLadder);
@@ -368,6 +384,7 @@ export default function AdminPage() {
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground">Rank:</span>
                         <Input
+                          key={mem.rank}
                           type="number"
                           defaultValue={mem.rank}
                           onBlur={e => updateMemberRank(mem, e.target.value)}
