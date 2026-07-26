@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
-import { Send, Search, Plus, X } from 'lucide-react';
+import { Send, Search, Plus, X, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PlayerAvatar from '@/components/PlayerAvatar';
@@ -21,6 +21,10 @@ export default function MessagesPage() {
   const [threads, setThreads] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [threadMessages, setThreadMessages] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupMessages, setGroupMessages] = useState([]);
+  const [sendingGroupMsg, setSendingGroupMsg] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -120,10 +124,91 @@ export default function MessagesPage() {
       ));
     }
 
+    await loadGroups(u);
+
     setLoading(false);
   };
 
+  const loadGroups = async (u) => {
+    const { data: myParticipant } = await supabase.from('conversation_participants').select('conversation_id').match({ user_id: u.id });
+    const convoIds = (myParticipant || []).map(p => p.conversation_id);
+    if (convoIds.length === 0) {
+      setGroups([]);
+      return;
+    }
+
+    const [{ data: convos }, { data: allParticipants }, { data: msgs }] = await Promise.all([
+      supabase.from('conversations').select('*').in('id', convoIds),
+      supabase.from('conversation_participants').select('*').in('conversation_id', convoIds),
+      supabase.from('conversation_messages').select('*').in('conversation_id', convoIds),
+    ]);
+
+    const groupList = (convos || []).map(c => {
+      const participantIds = (allParticipants || [])
+        .filter(p => p.conversation_id === c.id)
+        .map(p => p.user_id)
+        .filter(id => id !== u.id);
+      const messages = (msgs || [])
+        .filter(m => m.conversation_id === c.id)
+        .sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date));
+      return {
+        id: c.id,
+        name: c.name,
+        participantIds,
+        messages,
+        lastMessage: messages[messages.length - 1] || null,
+      };
+    });
+
+    setGroups(groupList);
+  };
+
+  const openGroupThread = (group) => {
+    setSelectedThread(null);
+    setSelectedGroup(group);
+    setGroupMessages(group.messages);
+  };
+
+  const sendGroupMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup) return;
+    setSendingGroupMsg(true);
+
+    const { data: msg } = await supabase.from('conversation_messages').insert({
+      conversation_id: selectedGroup.id,
+      sender_id: user.id,
+      content: newMessage.trim(),
+    }).select().single();
+
+    const notifs = selectedGroup.participantIds.map(uid => ({
+      user_id: uid,
+      type: 'new_message',
+      title: `New group message from ${getDisplayName(user)}`,
+      body: newMessage.trim().slice(0, 100),
+    }));
+    try {
+      await callApi('/api/notify', { notifications: notifs });
+    } catch (err) {
+      console.warn('Group message notify failed:', err?.message);
+    }
+
+    setNewMessage('');
+    setSendingGroupMsg(false);
+
+    const newMsg = { ...msg, created_date: msg?.created_date || new Date().toISOString() };
+    const updated = [...groupMessages, newMsg];
+    setGroupMessages(updated);
+    setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, messages: updated, lastMessage: newMsg } : g));
+    setSelectedGroup(prev => prev ? { ...prev, messages: updated, lastMessage: newMsg } : prev);
+  };
+
+  const getGroupName = (group) => {
+    if (group.name) return group.name;
+    const names = group.participantIds.map(id => getDisplayName(allUsers[id]));
+    return names.join(', ') || 'Group';
+  };
+
   const openThread = async (thread) => {
+    setSelectedGroup(null);
     setSelectedThread(thread);
     setThreadMessages(thread.messages);
 
@@ -228,6 +313,7 @@ export default function MessagesPage() {
   const startConversation = (otherId) => {
     setShowNewConvo(false);
     setNewConvoSearch('');
+    setSelectedGroup(null);
     // Check if thread already exists
     const existing = threads.find(t => t.otherId === otherId);
     if (existing) {
@@ -427,6 +513,16 @@ export default function MessagesPage() {
     return getDisplayName(other)?.toLowerCase().includes(search.toLowerCase());
   });
 
+  const filteredGroups = groups.filter(g => {
+    if (!search) return true;
+    return getGroupName(g)?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const unifiedList = [
+    ...filteredThreads.map(t => ({ type: 'dm', key: t.otherId, lastMessage: t.lastMessage, unreadCount: t.unreadCount, raw: t })),
+    ...filteredGroups.map(g => ({ type: 'group', key: g.id, lastMessage: g.lastMessage, unreadCount: 0, raw: g })),
+  ].sort((a, b) => parseDateUTC(b.lastMessage?.created_date) - parseDateUTC(a.lastMessage?.created_date));
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-4 border-muted border-t-[hsl(217,72%,40%)] rounded-full animate-spin" />
@@ -460,30 +556,38 @@ export default function MessagesPage() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto divide-y divide-border">
-              {filteredThreads.map(thread => {
-                const other = allUsers[thread.otherId];
-                const isSelected = selectedThread?.otherId === thread.otherId;
+              {unifiedList.map(t => {
+                const isGroup = t.type === 'group';
+                const other = isGroup ? null : allUsers[t.key];
+                const name = isGroup ? getGroupName(t.raw) : getDisplayName(other);
+                const isSelected = isGroup ? selectedGroup?.id === t.key : selectedThread?.otherId === t.key;
                 return (
                   <button
-                    key={thread.otherId}
-                    onClick={() => openThread(thread)}
+                    key={`${t.type}-${t.key}`}
+                    onClick={() => isGroup ? openGroupThread(t.raw) : openThread(t.raw)}
                     className={`w-full flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors text-left ${isSelected ? 'bg-blue-50' : ''}`}
                   >
-                    <PlayerAvatar user={other} size="md" />
+                    {isGroup ? (
+                      <div className="w-11 h-11 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
+                    ) : (
+                      <PlayerAvatar user={other} size="md" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="font-semibold text-sm truncate">{getDisplayName(other)}</p>
+                        <p className="font-semibold text-sm truncate">{name}</p>
                         <p className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                          {thread.lastMessage?.created_date
-                            ? formatEasternDate(thread.lastMessage.created_date)
+                          {t.lastMessage?.created_date
+                            ? formatEasternDate(t.lastMessage.created_date)
                             : ''}
                         </p>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-xs text-muted-foreground truncate">{thread.lastMessage?.content}</p>
-                        {thread.unreadCount > 0 && (
+                        <p className="text-xs text-muted-foreground truncate">{t.lastMessage?.content}</p>
+                        {t.unreadCount > 0 && (
                           <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                            {thread.unreadCount}
+                            {t.unreadCount}
                           </span>
                         )}
                       </div>
@@ -491,7 +595,7 @@ export default function MessagesPage() {
                   </button>
                 );
               })}
-              {filteredThreads.length === 0 && (
+              {unifiedList.length === 0 && (
                 <div className="p-8 text-center text-sm text-muted-foreground">
                   No conversations yet
                 </div>
@@ -500,8 +604,71 @@ export default function MessagesPage() {
           </div>
 
           {/* Message view */}
-          <div className={`flex-1 flex flex-col ${!selectedThread ? 'hidden md:flex' : 'flex'}`}>
-            {selectedThread ? (
+          <div className={`flex-1 flex flex-col ${!selectedThread && !selectedGroup ? 'hidden md:flex' : 'flex'}`}>
+            {selectedGroup ? (
+              <>
+                <div className="px-6 py-4 border-b border-border bg-white flex items-center gap-3">
+                  <button
+                    className="md:hidden mr-1 p-1.5 rounded-lg hover:bg-muted"
+                    onClick={() => setSelectedGroup(null)}
+                  >
+                    ←
+                  </button>
+                  <div className="w-11 h-11 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold">{getGroupName(selectedGroup)}</p>
+                    <p className="text-xs text-muted-foreground">Group chat</p>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-background">
+                  {groupMessages.map(msg => {
+                    const isMe = msg.sender_id === user?.id;
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                          {!isMe && (
+                            <p className="text-xs font-semibold text-muted-foreground px-1">
+                              {getDisplayName(allUsers[msg.sender_id])}
+                            </p>
+                          )}
+                          <div className={`px-4 py-3 rounded-2xl text-sm ${
+                            isMe
+                              ? 'bg-[hsl(217,72%,16%)] text-white rounded-br-sm'
+                              : 'bg-white border border-border rounded-bl-sm'
+                          }`}>
+                            {msg.content}
+                          </div>
+                          <p className="text-xs text-muted-foreground px-1">
+                            {msg.created_date ? formatEasternTime(msg.created_date) : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+                <div className="p-4 border-t border-border bg-white">
+                  <div className="flex gap-3">
+                    <Input
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendGroupMessage()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={sendGroupMessage}
+                      disabled={!newMessage.trim() || sendingGroupMsg}
+                      className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] px-4"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : selectedThread ? (
               <>
                 <div className="px-6 py-4 border-b border-border bg-white flex items-center gap-3">
                   <button
