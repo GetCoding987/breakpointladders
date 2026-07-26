@@ -3,11 +3,6 @@
 		{ "source": "/((?!api/).*)", "destination": "/index.html" }
 	],
 	"crons": [
-		{ "path": "/api/cron/send-match-reminders", "schedule": "0 13 * * *" },
-		{ "path": "/api/cron/send-membership-expiry-reminders", "schedule": "0 13 * * *" },
-		{ "path": "/api/cron/auto-forfeit-challenges", "schedule": "0 14 * * *" },
-		{ "path": "/api/cron/season-transition-reminder", "schedule": "0 13 * * *" },
-		{ "path": "/api/cron/expire-stale-challenges", "schedule": "0 14 * * *" },
-		{ "path": "/api/cron/auto-confirm-scores", "schedule": "0 14 * * *" }
+		{ "path": "/api/cron/daily-maintenance", "schedule": "0 13 * * *" }
 	]
 }
