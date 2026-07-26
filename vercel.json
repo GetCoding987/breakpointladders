@@ -4,6 +4,7 @@
 	],
 	"crons": [
 		{ "path": "/api/cron/send-match-reminders", "schedule": "0 13 * * *" },
-		{ "path": "/api/cron/send-membership-expiry-reminders", "schedule": "0 13 * * *" }
+		{ "path": "/api/cron/send-membership-expiry-reminders", "schedule": "0 13 * * *" },
+		{ "path": "/api/cron/auto-forfeit-challenges", "schedule": "0 14 * * *" }
 	]
 }

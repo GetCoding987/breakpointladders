@@ -116,6 +116,7 @@ export default function ProfilePage() {
       status: 'active',
       freeze_start_date: null,
       freeze_return_date: null,
+      no_response_streak: 0,
     }).eq('id', membership.id);
     load();
   };
@@ -357,19 +358,29 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {membership && membership.status === 'frozen_voluntary' && (
+      {membership && (membership.status === 'frozen_voluntary' || membership.status === 'frozen_no_response') && (
         <div className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
           <div className="flex items-center gap-3 mb-3">
             <Snowflake className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-blue-800">Your spot is frozen</h3>
+            <h3 className="font-bold text-blue-800">
+              {membership.status === 'frozen_no_response' ? 'Your spot has been automatically frozen' : 'Your spot is frozen'}
+            </h3>
           </div>
-          <p className="text-sm text-blue-700 mb-1">
-            Frozen since: {membership.freeze_start_date ? formatDateOnly(membership.freeze_start_date) : '—'}
-          </p>
-          {membership.freeze_return_date && (
+          {membership.status === 'frozen_no_response' ? (
             <p className="text-sm text-blue-700 mb-4">
-              Expected return: {formatDateOnly(membership.freeze_return_date)}
+              You didn't respond to two challenges in a row within 48 hours, so your account was automatically frozen and you can't be challenged while frozen. Unfreeze below to return to active play.
             </p>
+          ) : (
+            <>
+              <p className="text-sm text-blue-700 mb-1">
+                Frozen since: {membership.freeze_start_date ? formatDateOnly(membership.freeze_start_date) : '—'}
+              </p>
+              {membership.freeze_return_date && (
+                <p className="text-sm text-blue-700 mb-4">
+                  Expected return: {formatDateOnly(membership.freeze_return_date)}
+                </p>
+              )}
+            </>
           )}
           <Button onClick={unfreezeAccount} className="gap-2 bg-blue-600 hover:bg-blue-700">
             <Sun className="w-4 h-4" />

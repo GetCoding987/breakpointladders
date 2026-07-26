@@ -20,6 +20,7 @@ export default function PlayerAvatar({ user, size = 'md', showStatus = false, st
     active: 'bg-green-500',
     frozen_voluntary: 'bg-blue-400',
     frozen_expired: 'bg-red-400',
+    frozen_no_response: 'bg-orange-400',
     inactive: 'bg-gray-400',
   };
 

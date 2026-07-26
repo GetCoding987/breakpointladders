@@ -115,6 +115,9 @@ export default function ChallengesPage() {
 
   const acceptChallenge = async (challenge) => {
     await supabase.from('challenges').update({ status: 'accepted' }).eq('id', challenge.id);
+    if (myMembership) {
+      await supabase.from('ladder_memberships').update({ no_response_streak: 0 }).eq('id', myMembership.id);
+    }
     try {
       await callApi('/api/notify', {
         user_id: challenge.challenger_id,
@@ -168,6 +171,10 @@ export default function ChallengesPage() {
       status: newStatus,
       message: (declineTarget.message ? declineTarget.message + '\n\nDecline reason: ' : 'Decline reason: ') + declineReason.trim(),
     }).eq('id', declineTarget.id);
+
+    if (myMembership) {
+      await supabase.from('ladder_memberships').update({ no_response_streak: 0 }).eq('id', myMembership.id);
+    }
 
     try {
       await callApi('/api/notify', {

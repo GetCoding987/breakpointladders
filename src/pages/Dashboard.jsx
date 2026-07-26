@@ -130,7 +130,7 @@ export default function Dashboard() {
   Math.round(membership.wins / (membership.wins + membership.losses) * 100) :
   0;
 
-  const isFrozen = membership.status === 'frozen_voluntary' || membership.status === 'frozen_expired';
+  const isFrozen = membership.status === 'frozen_voluntary' || membership.status === 'frozen_expired' || membership.status === 'frozen_no_response';
 
   return (
     <div className="p-3 max-w-[1400px] mx-auto">

@@ -8,6 +8,13 @@ export default function FreezeStatusBadge({ status }) {
       </span>
     );
   }
+  if (status === 'frozen_no_response') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-semibold">
+        <Ban className="w-3 h-3" /> Frozen (No Response)
+      </span>
+    );
+  }
   if (status === 'frozen_expired') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">

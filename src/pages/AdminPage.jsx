@@ -380,6 +380,7 @@ export default function AdminPage() {
                         <SelectContent>
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="frozen_voluntary">Frozen (Vol.)</SelectItem>
+                          <SelectItem value="frozen_no_response">Frozen (No-Resp.)</SelectItem>
                           <SelectItem value="frozen_expired">Frozen (Exp.)</SelectItem>
                           <SelectItem value="suspended">Suspended</SelectItem>
                           <SelectItem value="inactive">Inactive</SelectItem>
