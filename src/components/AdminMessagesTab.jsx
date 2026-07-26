@@ -4,7 +4,6 @@ import { Megaphone, Send, Edit, Trash2, Search, MessageSquare, Users } from 'luc
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import PlayerAvatar from '@/components/PlayerAvatar';
@@ -19,10 +18,6 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const [annTitle, setAnnTitle] = useState('');
   const [annBody, setAnnBody] = useState('');
   const [postingAnn, setPostingAnn] = useState(false);
-
-  const [msgRecipient, setMsgRecipient] = useState('all');
-  const [msgContent, setMsgContent] = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
 
   const [editingAnn, setEditingAnn] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -121,42 +116,6 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
     if (!confirm('Delete this announcement?')) return;
     await supabase.from('announcements').delete().eq('id', ann.id);
     loadData();
-  };
-
-  const sendMessage = async () => {
-    if (!msgContent.trim()) return;
-    setSendingMsg(true);
-
-    const recipients = msgRecipient === 'all'
-      ? members
-      : members.filter(m => m.user_id === msgRecipient);
-
-    const messages = recipients.map(mem => ({
-      sender_id: user.id,
-      recipient_id: mem.user_id,
-      content: msgContent.trim(),
-      read: false,
-      thread_id: [user.id, mem.user_id].sort().join('_'),
-    }));
-
-    const notifs = recipients.map(mem => ({
-      user_id: mem.user_id,
-      type: 'new_message',
-      title: 'Message from Admin',
-      body: msgContent.trim().slice(0, 100),
-    }));
-
-    try {
-      await supabase.from('messages').insert(messages);
-      await callApi('/api/notify', { notifications: notifs });
-    } catch (err) {
-      console.warn('Admin message failed:', err?.message);
-    }
-
-    setMsgContent('');
-    setMsgRecipient('all');
-    setSendingMsg(false);
-    loadThreads();
   };
 
   const loadThreads = async () => {
@@ -459,48 +418,6 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
           </div>
         </div>
       )}
-
-      {/* Send Message */}
-      <div className="bg-white rounded-xl border border-border p-5 shadow-sm">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <Send className="w-5 h-5 text-[hsl(217,72%,40%)]" />
-          Send Message
-        </h2>
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Recipient</label>
-            <Select value={msgRecipient} onValueChange={setMsgRecipient}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Active Players</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Textarea
-            placeholder="Type your message..."
-            value={msgContent}
-            onChange={e => setMsgContent(e.target.value)}
-            rows={3}
-          />
-          <div className="flex justify-end">
-            <Button
-              onClick={sendMessage}
-              disabled={!msgContent.trim() || sendingMsg}
-              className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2"
-            >
-              <Send className="w-4 h-4" />
-              {sendingMsg ? 'Sending...' : `Send${msgRecipient === 'all' ? ' to All' : ''}`}
-            </Button>
-          </div>
-        </div>
-      </div>
 
       {/* Conversations */}
       <div className="bg-white rounded-xl border border-border shadow-sm mt-6 overflow-hidden">
