@@ -299,6 +299,9 @@ export default function Login() {
             <p className="mt-4 text-sm text-[#666]">
               Click the link in the email to confirm your account. You'll be signed in automatically.
             </p>
+            <p className="mt-4 text-sm text-[#666]">
+              Check your Junk/Spam folder if you didn't receive the email.
+            </p>
           </div>
         </main>
       </div>
