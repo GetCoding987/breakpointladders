@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase, getCurrentUser } from '@/lib/supabaseClient';
-import { Trophy, Search, Swords, Snowflake, CreditCard, MapPin, MessageSquare, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { Trophy, Search, Swords, Snowflake, CreditCard, MapPin, MessageSquare, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import RankBadge from '@/components/RankBadge';
@@ -321,7 +321,7 @@ export default function LadderPage() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <Minus className="w-3.5 h-3.5" /> Neutral
+                        Neutral
                       </span>
                     )}
                   </div>
