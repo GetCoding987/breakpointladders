@@ -248,7 +248,7 @@ export default function AdminPage() {
   const lapsedCount = memberships.filter(m => m.status === 'active' && m.membership_expires && m.membership_expires < todayStr).length;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-3 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">Admin Panel</h1>
