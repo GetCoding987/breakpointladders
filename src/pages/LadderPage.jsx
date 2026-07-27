@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase, getCurrentUser } from '@/lib/supabaseClient';
-import { Trophy, Search, Swords, Snowflake, CreditCard, MapPin, MessageSquare } from 'lucide-react';
+import { Trophy, Search, Swords, Snowflake, CreditCard, MapPin, MessageSquare, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import RankBadge from '@/components/RankBadge';
@@ -11,6 +11,7 @@ import { getDisplayName } from '@/utils/userHelpers';
 import { useNavigate } from 'react-router-dom';
 import PlayerHoverCard from '@/components/PlayerHoverCard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 
 export default function LadderPage() {
   const navigate = useNavigate();
@@ -20,6 +21,9 @@ export default function LadderPage() {
   const [selectedLadder, setSelectedLadder] = useState(null);
   const [memberships, setMemberships] = useState([]);
   const [allUsers, setAllUsers] = useState({});
+  const [streaks, setStreaks] = useState({});
+  const [movements, setMovements] = useState({});
+  const [pendingChallenges, setPendingChallenges] = useState({});
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -77,6 +81,63 @@ export default function LadderPage() {
       });
     }
     setAllUsers(map);
+
+    // Streak + Movement: derived from each player's confirmed match history
+    // (oldest to newest), since the app only stores current rank, not history.
+    const { data: allMatches } = await supabase.from('matches').select('*')
+      .match({ ladder_id: ladder.id, status: 'confirmed' });
+    const sortedMatches = (allMatches || []).sort((a, b) => new Date(a.played_date) - new Date(b.played_date));
+
+    const { data: allChallenges } = await supabase.from('challenges').select('*').match({ ladder_id: ladder.id });
+    const challengeById = {};
+    (allChallenges || []).forEach(c => { challengeById[c.id] = c; });
+
+    const streakMap = {};
+    const movementMap = {};
+    (mems || []).forEach(m => {
+      const playerMatches = sortedMatches.filter(match => match.player1_id === m.user_id || match.player2_id === m.user_id);
+      // Streak: consecutive wins or losses ending with the most recent match
+      let streakCount = 0;
+      let streakType = null;
+      for (let i = playerMatches.length - 1; i >= 0; i--) {
+        const won = playerMatches[i].winner_id === m.user_id;
+        const type = won ? 'W' : 'L';
+        if (streakType === null) streakType = type;
+        if (type !== streakType) break;
+        streakCount++;
+      }
+      streakMap[m.user_id] = streakType ? { type: streakType, count: streakCount } : null;
+
+      // Movement: compare current rank to the rank recorded at the time of
+      // the most recent match's underlying challenge (if any).
+      const lastMatch = playerMatches[playerMatches.length - 1];
+      const lastChallenge = lastMatch?.challenge_id ? challengeById[lastMatch.challenge_id] : null;
+      if (lastChallenge) {
+        const rankAtTime = lastMatch.player1_id === m.user_id
+          ? lastChallenge.challenger_rank_at_time
+          : lastChallenge.opponent_rank_at_time;
+        if (rankAtTime != null && m.rank != null) {
+          if (m.rank < rankAtTime) movementMap[m.user_id] = 'up';
+          else if (m.rank > rankAtTime) movementMap[m.user_id] = 'down';
+          else movementMap[m.user_id] = 'neutral';
+        } else {
+          movementMap[m.user_id] = 'neutral';
+        }
+      } else {
+        movementMap[m.user_id] = 'neutral';
+      }
+    });
+    setStreaks(streakMap);
+    setMovements(movementMap);
+
+    // Challenge Pending: any pending challenge involving this player
+    const pendingMap = {};
+    (allChallenges || []).forEach(c => {
+      if (c.status !== 'pending') return;
+      if (!pendingMap[c.challenger_id]) pendingMap[c.challenger_id] = c.opponent_id;
+      if (!pendingMap[c.opponent_id]) pendingMap[c.opponent_id] = c.challenger_id;
+    });
+    setPendingChallenges(pendingMap);
   };
 
   const filtered = memberships.filter(m => {
@@ -178,17 +239,24 @@ export default function LadderPage() {
 
       {/* Ladder table */}
       <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 px-6 py-3 bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="hidden md:grid grid-cols-[repeat(20,minmax(0,1fr))] px-6 py-3 bg-muted/40 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           <div className="col-span-1">Rank</div>
-          <div className="col-span-6">Player</div>
+          <div className="col-span-5">Player</div>
           <div className="col-span-2 text-center">W-L</div>
-          <div className="col-span-3 text-right">Action</div>
+          <div className="col-span-2 text-center">Streak</div>
+          <div className="col-span-2 text-center">Movement</div>
+          <div className="col-span-3 text-center">Challenge Pending</div>
+          <div className="col-span-5 text-right">Action</div>
         </div>
         <div className="divide-y divide-border">
           {filtered.map((mem) => {
             const memberUser = allUsers[mem.user_id];
             const isMe = mem.user_id === user?.id;
             const challengeable = canChallenge(mem);
+            const streak = streaks[mem.user_id];
+            const movement = movements[mem.user_id];
+            const pendingOpponentId = pendingChallenges[mem.user_id];
+            const pendingOpponent = pendingOpponentId ? allUsers[pendingOpponentId] : null;
 
             return (
               <div
@@ -197,7 +265,7 @@ export default function LadderPage() {
                   isMe ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-muted/20'
                 }`}
               >
-                <div className="flex flex-col gap-2 md:grid md:grid-cols-12 md:items-center md:gap-0">
+                <div className="flex flex-col gap-2 md:grid md:grid-cols-[repeat(20,minmax(0,1fr))] md:items-center md:gap-0">
                   {/* Top row on mobile: rank + player + W-L */}
                   <div className="flex items-center gap-3 md:contents">
                     <div className="md:col-span-1 shrink-0">
@@ -206,7 +274,7 @@ export default function LadderPage() {
                     <PlayerHoverCard user={memberUser}>
                       <Link
                         to={isMe ? '/profile' : `/players/${mem.user_id}`}
-                        className="flex items-center gap-3 md:col-span-6 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                        className="flex items-center gap-3 md:col-span-5 flex-1 min-w-0 hover:opacity-80 transition-opacity"
                       >
                         <PlayerAvatar user={memberUser} size="sm" showStatus status={mem.status} />
                         <div className="min-w-0">
@@ -229,8 +297,55 @@ export default function LadderPage() {
                       <span className="text-sm font-medium text-red-500">{mem.losses || 0}</span>
                     </div>
                   </div>
-                  {/* Action buttons — on mobile: full-width row below; on desktop: col-span-3 */}
-                  <div className="flex justify-end gap-2 md:col-span-3">
+
+                  {/* Streak */}
+                  <div className="md:col-span-2 md:text-center">
+                    {streak ? (
+                      <span className={`text-sm font-semibold ${streak.type === 'W' ? 'text-green-600' : 'text-red-500'}`}>
+                        {streak.type}{streak.count}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </div>
+
+                  {/* Movement */}
+                  <div className="md:col-span-2 md:flex md:justify-center">
+                    {movement === 'up' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600">
+                        <ArrowUp className="w-3.5 h-3.5" /> Up
+                      </span>
+                    ) : movement === 'down' ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-500">
+                        <ArrowDown className="w-3.5 h-3.5" /> Down
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Minus className="w-3.5 h-3.5" /> Neutral
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Challenge Pending */}
+                  <div className="md:col-span-3 md:flex md:justify-center">
+                    {pendingOpponent ? (
+                      <HoverCard openDelay={150}>
+                        <HoverCardTrigger asChild>
+                          <span className="text-xs font-semibold text-amber-600 cursor-default underline decoration-dotted underline-offset-2">
+                            Yes
+                          </span>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="w-56 text-sm">
+                          Pending challenge with <strong>{getDisplayName(pendingOpponent)}</strong>
+                        </HoverCardContent>
+                      </HoverCard>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No</span>
+                    )}
+                  </div>
+
+                  {/* Action buttons — on mobile: full-width row below; on desktop: col-span-5 */}
+                  <div className="flex justify-end gap-2 md:col-span-5">
                     {challengeable ? (
                       <>
                         <Button size="sm" variant="outline" onClick={() => messagePlayer(mem.user_id)} className="h-8 text-xs gap-1">
