@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   LayoutDashboard, Trophy, Activity, MessageSquare, Swords,
-  Users, User, Settings, LogOut, Bell, Menu, BookOpen, MessageCircleQuestion
+  Users, User, Settings, LogOut, Bell, Menu, BookOpen, MessageCircle
 } from 'lucide-react';
 
 export default function Layout() {
@@ -259,14 +259,15 @@ export default function Layout() {
         </main>
       </div>
 
-      {/* Contact Admin floating button */}
+      {/* Contact Admin chat bubble */}
       {!isAdmin && (
         <button
           onClick={() => setShowContactAdmin(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-[hsl(217,72%,16%)] text-white shadow-lg hover:bg-[hsl(217,72%,22%)] transition-colors"
+          aria-label="Contact Admin"
+          title="Contact Admin"
+          className="fixed bottom-6 right-6 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-[hsl(217,72%,16%)] text-white shadow-lg hover:bg-[hsl(217,72%,22%)] hover:scale-105 transition-all"
         >
-          <MessageCircleQuestion className="w-5 h-5" />
-          <span className="text-sm font-semibold hidden sm:inline">Contact Admin</span>
+          <MessageCircle className="w-6 h-6" fill="currentColor" strokeWidth={0} />
         </button>
       )}
 
