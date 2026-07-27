@@ -1,10 +1,15 @@
 /**
- * Formats a typed name to sentence case as the user types: first letter
- * capitalized, everything else lowercase (e.g. "jANE" -> "Jane").
+ * Formats a typed name to sentence case as the user types: first letter of
+ * each hyphen-separated part capitalized, everything else lowercase
+ * (e.g. "jANE" -> "Jane", "smith-jones" -> "Smith-Jones").
  */
 export function toSentenceCase(str) {
   if (!str) return str;
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  return str
+    .toLowerCase()
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('-');
 }
 
 /**
