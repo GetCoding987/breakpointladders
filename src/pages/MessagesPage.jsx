@@ -538,21 +538,25 @@ export default function MessagesPage() {
   );
 
   return (
-    <div className="h-[calc(100vh-73px)] max-w-[1400px] mx-auto flex">
+    <div className="p-3 max-w-[1400px] mx-auto h-[calc(100vh-73px)] flex flex-col">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Messages</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Conversations with other players</p>
+        </div>
+        <Button
+          onClick={() => setShowNewConvo(true)}
+          className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          New
+        </Button>
+      </div>
+
+      <div className="flex-1 flex rounded-xl border border-border bg-white shadow-sm overflow-hidden min-h-0">
       {/* Thread list */}
           <div className={`w-full md:w-80 flex-shrink-0 border-r border-border bg-white flex flex-col ${selectedThread ? 'hidden md:flex' : 'flex'}`}>
             <div className="p-4 border-b border-border">
-              <div className="flex items-center justify-between mb-3">
-                <h1 className="font-bold text-lg">Messages</h1>
-                <Button
-                  size="sm"
-                  onClick={() => setShowNewConvo(true)}
-                  className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  New
-                </Button>
-              </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -765,6 +769,7 @@ export default function MessagesPage() {
               </div>
             )}
           </div>
+      </div>
           {/* New Conversation Modal */}
       <Dialog open={showNewConvo} onOpenChange={setShowNewConvo}>
         <DialogContent className="max-w-sm">
