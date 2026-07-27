@@ -27,7 +27,7 @@ export default function PlayerHoverCard({ user, children }) {
           {user?.ntrp_rating && (
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">NTRP</span>
-              <span className="font-medium">{user.ntrp_rating}</span>
+              <span className="font-medium">{Number(user.ntrp_rating).toFixed(1)}</span>
             </div>
           )}
           {!user?.city && !user?.gender && !user?.ntrp_rating && (

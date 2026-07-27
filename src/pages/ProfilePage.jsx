@@ -314,7 +314,7 @@ export default function ProfilePage() {
                {user?.ntrp_rating && (
                  <div className="flex justify-between text-sm">
                    <span className="text-muted-foreground"><NtrpDefinitionsLink>NTRP Self-Rating</NtrpDefinitionsLink></span>
-                   <span className="font-medium">{user.ntrp_rating}</span>
+                   <span className="font-medium">{Number(user.ntrp_rating).toFixed(1)}</span>
                  </div>
                )}
               {!user?.city && !user?.state && !user?.location && !user?.phone && (
