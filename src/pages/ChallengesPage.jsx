@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
-import { Clock, CheckCircle, XCircle, MessageSquare } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, MessageSquare, Swords, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,8 +23,15 @@ export default function ChallengesPage() {
   const [user, setUser] = useState(null);
   const [membership, setMembership] = useState(null);
   const [challenges, setChallenges] = useState([]);
+  const [eligiblePlayers, setEligiblePlayers] = useState([]);
   const [allUsers, setAllUsers] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // New Challenge dialog
+  const [showNewChallenge, setShowNewChallenge] = useState(false);
+  const [selectedOpponent, setSelectedOpponent] = useState(null);
+  const [challengeMsg, setChallengeMsg] = useState('');
+  const [submittingChallenge, setSubmittingChallenge] = useState(false);
 
   const [declineTarget, setDeclineTarget] = useState(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -59,7 +66,76 @@ export default function ChallengesPage() {
     map[u.id] = u;
     setAllUsers(map);
 
+    // Anyone already in a pending or accepted challenge (either side) can't be challenged
+    const busyUserIds = new Set();
+    (allChallenges || []).forEach((c) => {
+      if (c.status === 'pending' || c.status === 'accepted') {
+        busyUserIds.add(c.challenger_id);
+        busyUserIds.add(c.opponent_id);
+      }
+    });
+    const rankWindow = 10;
+    const myRank = mem.rank || 999;
+    const isTop5 = myRank <= 5;
+    const eligible = (allMems || []).filter((m) => {
+      if (m.user_id === u.id || m.status !== 'active' || busyUserIds.has(m.user_id)) return false;
+      const targetRank = m.rank || 999;
+      if (targetRank < myRank) return (myRank - targetRank) <= rankWindow;
+      if (isTop5 && targetRank > myRank) return (targetRank - myRank) <= 10;
+      return false;
+    });
+    setEligiblePlayers(eligible.sort((a, b) => (a.rank || 999) - (b.rank || 999)));
+
     setLoading(false);
+  };
+
+  const sendChallenge = async () => {
+    if (!selectedOpponent || !membership) return;
+    setSubmittingChallenge(true);
+
+    const alreadyPending = challenges.some((c) => c.challenger_id === user.id && c.status === 'pending');
+    if (alreadyPending) {
+      setSubmittingChallenge(false);
+      alert('You already have a pending challenge awaiting a response. You cannot send another until it is accepted or declined.');
+      return;
+    }
+
+    const { data: opponentBusy } = await supabase
+      .from('challenges')
+      .select('id')
+      .match({ ladder_id: membership.ladder_id })
+      .in('status', ['pending', 'accepted'])
+      .or(`challenger_id.eq.${selectedOpponent.user_id},opponent_id.eq.${selectedOpponent.user_id}`);
+    if (opponentBusy?.length > 0) {
+      setSubmittingChallenge(false);
+      alert('This player already has a pending or accepted challenge. Please choose someone else.');
+      return;
+    }
+
+    await supabase.from('challenges').insert({
+      challenger_id: user.id,
+      opponent_id: selectedOpponent.user_id,
+      ladder_id: membership.ladder_id,
+      status: 'pending',
+      challenger_rank_at_time: membership.rank,
+      opponent_rank_at_time: selectedOpponent.rank,
+      message: challengeMsg,
+    });
+    try {
+      await callApi('/api/notify', {
+        user_id: selectedOpponent.user_id,
+        type: 'challenge_received',
+        title: 'New Challenge!',
+        body: `${getDisplayName(user)} has challenged you on the ladder.`,
+      });
+    } catch (err) {
+      console.warn('Failed to send challenge notification:', err?.message);
+    }
+    setShowNewChallenge(false);
+    setSelectedOpponent(null);
+    setChallengeMsg('');
+    setSubmittingChallenge(false);
+    load();
   };
 
   const acceptChallenge = async (challenge) => {
@@ -173,6 +249,7 @@ export default function ChallengesPage() {
   const madePending = challenges.filter((c) => c.status === 'pending' && c.challenger_id === user?.id);
   const acceptedChallenges = challenges.filter((c) => c.status === 'accepted');
   const history = challenges.filter((c) => ['declined', 'completed', 'cancelled', 'expired'].includes(c.status));
+  const hasPendingSent = madePending.length > 0;
 
   const renderRow = (c, { children } = {}) => {
     const isChallenger = c.challenger_id === user?.id;
@@ -198,18 +275,31 @@ export default function ChallengesPage() {
 
   return (
     <div className="p-3 max-w-[1400px] mx-auto">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-foreground">Challenges</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Full history of challenges made, received, and accepted</p>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Challenges</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Full history of challenges made, received, and accepted</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            onClick={() => setShowNewChallenge(true)}
+            disabled={hasPendingSent}
+            className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2 disabled:opacity-50"
+          >
+            <Swords className="w-4 h-4" />
+            Challenge Players
+          </Button>
+          {hasPendingSent && <p className="text-xs text-muted-foreground">You have a pending challenge</p>}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Received */}
-        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="font-semibold text-sm text-foreground">Challenges Received</h2>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border overflow-y-auto max-h-96">
             {receivedPending.map((c) => {
               const otherUser = allUsers[c.challenger_id];
               const hoursLeft = c.created_date ? Math.max(0, 48 - Math.floor((Date.now() - new Date(c.created_date)) / 3600000)) : 48;
@@ -241,11 +331,11 @@ export default function ChallengesPage() {
         </div>
 
         {/* Made */}
-        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="font-semibold text-sm text-foreground">Challenges Made</h2>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border overflow-y-auto max-h-96">
             {madePending.map((c) => {
               const otherUser = allUsers[c.opponent_id];
               return (
@@ -268,11 +358,11 @@ export default function ChallengesPage() {
         </div>
 
         {/* Accepted */}
-        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden lg:col-span-2">
+        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="font-semibold text-sm text-foreground">Accepted Challenges</h2>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border overflow-y-auto max-h-96">
             {acceptedChallenges.map((c) => {
               const isChallenger = c.challenger_id === user?.id;
               const otherUser = allUsers[isChallenger ? c.opponent_id : c.challenger_id];
@@ -301,11 +391,11 @@ export default function ChallengesPage() {
         </div>
 
         {/* History */}
-        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden lg:col-span-2">
+        <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="font-semibold text-sm text-foreground">History</h2>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border overflow-y-auto max-h-96">
             {history.map((c) => renderRow(c))}
             {history.length === 0 && (
               <div className="px-4 py-6 text-center text-sm text-muted-foreground">No past challenges yet</div>
@@ -313,6 +403,48 @@ export default function ChallengesPage() {
           </div>
         </div>
       </div>
+
+      {/* New Challenge Dialog */}
+      <Dialog open={showNewChallenge} onOpenChange={setShowNewChallenge}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Send a Challenge</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Select Opponent</label>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {eligiblePlayers.map((ep) => {
+                  const epUser = allUsers[ep.user_id];
+                  const isSelected = selectedOpponent?.user_id === ep.user_id;
+                  return (
+                    <button key={ep.user_id} onClick={() => setSelectedOpponent(ep)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${isSelected ? 'border-[hsl(217,72%,40%)] bg-blue-50' : 'border-border hover:bg-muted/30'}`}>
+                      <PlayerAvatar user={epUser} size="sm" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold">{getDisplayName(epUser)}</p>
+                        <p className="text-xs text-muted-foreground">Rank #{ep.rank}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+                {eligiblePlayers.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No eligible players to challenge. You can only challenge players within 10 spots above you.</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Message (optional)</label>
+              <Textarea placeholder="Add a friendly message..." value={challengeMsg} onChange={(e) => setChallengeMsg(e.target.value)} rows={3} />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowNewChallenge(false)}>Cancel</Button>
+              <Button onClick={sendChallenge} disabled={!selectedOpponent || submittingChallenge} className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2">
+                <Send className="w-4 h-4" />
+                {submittingChallenge ? 'Sending...' : 'Send Challenge'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Decline Dialog */}
       <Dialog open={!!declineTarget} onOpenChange={() => setDeclineTarget(null)}>
