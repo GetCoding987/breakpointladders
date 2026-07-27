@@ -13,7 +13,6 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import LadderPage from './pages/LadderPage';
-import ChallengesPage from './pages/ChallengesPage';
 import MatchesPage from './pages/MatchesPage';
 import MessagesPage from './pages/MessagesPage';
 
@@ -49,8 +48,8 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/ladder" element={<LadderPage />} />
-          <Route path="/challenges" element={<ChallengesPage />} />
-          <Route path="/challenges/new" element={<ChallengesPage />} />
+          <Route path="/challenges" element={<Navigate to="/" replace />} />
+          <Route path="/challenges/new" element={<Navigate to="/" replace />} />
           <Route path="/matches" element={<MatchesPage />} />
           <Route path="/matches/submit" element={<MatchesPage />} />
           <Route path="/messages" element={<MessagesPage />} />

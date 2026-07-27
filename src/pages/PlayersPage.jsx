@@ -125,7 +125,7 @@ export default function PlayersPage() {
                       </Button>
                     </Link>
                     {canChallenge(mem) &&
-                  <Link to={`/challenges/new?opponent=${mem.user_id}`}>
+                  <Link to={`/?challengeOpponent=${mem.user_id}`}>
                         <Button size="sm" className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] h-9 px-3 gap-1 text-xs">
                           <Swords className="w-3.5 h-3.5" />
                           Challenge

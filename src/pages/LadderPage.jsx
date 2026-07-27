@@ -110,7 +110,7 @@ export default function LadderPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-3 max-w-[1400px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Ladder Standings</h1>
@@ -237,12 +237,14 @@ export default function LadderPage() {
                           <MessageSquare className="w-3 h-3" />
                           Message
                         </Button>
-                        <Link to={`/challenges/new?opponent=${mem.user_id}`}>
-                          <Button size="sm" className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] h-8 text-xs gap-1">
-                            <Swords className="w-3 h-3" />
-                            Challenge
-                          </Button>
-                        </Link>
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/?challengeOpponent=${mem.user_id}`)}
+                          className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] h-8 text-xs gap-1"
+                        >
+                          <Swords className="w-3 h-3" />
+                          Challenge
+                        </Button>
                       </>
                     ) : isMe ? (
                       <span className="text-xs text-muted-foreground">You</span>

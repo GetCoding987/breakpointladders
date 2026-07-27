@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getDisplayName } from '@/utils/userHelpers';
 import {
-  LayoutDashboard, Trophy, Swords, Activity, MessageSquare,
+  LayoutDashboard, Trophy, Activity, MessageSquare,
   Users, User, Settings, LogOut, Bell, Menu, BookOpen
 } from 'lucide-react';
 
@@ -76,9 +76,8 @@ export default function Layout() {
   const displayName = getDisplayName(user);
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard, alert: pendingChallenges > 0, clearAlert: () => setPendingChallenges(0) },
     { path: '/ladder', label: 'Ladders', icon: Trophy },
-    { path: '/challenges', label: 'Challenges', icon: Swords, alert: pendingChallenges > 0, clearAlert: () => setPendingChallenges(0) },
     { path: '/matches', label: 'Matches', icon: Activity, alert: pendingScores > 0, clearAlert: () => setPendingScores(0) },
     { path: '/messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages, alert: unreadMessages > 0, clearAlert: () => setUnreadMessages(0) },
     { path: '/rules', label: 'Rules', icon: BookOpen },

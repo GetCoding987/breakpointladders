@@ -538,7 +538,7 @@ export default function MessagesPage() {
   );
 
   return (
-    <div className="h-[calc(100vh-73px)] flex">
+    <div className="h-[calc(100vh-73px)] max-w-[1400px] mx-auto flex">
       {/* Thread list */}
           <div className={`w-full md:w-80 flex-shrink-0 border-r border-border bg-white flex flex-col ${selectedThread ? 'hidden md:flex' : 'flex'}`}>
             <div className="p-4 border-b border-border">

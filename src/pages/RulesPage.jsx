@@ -28,7 +28,7 @@ const Bold = ({ children }) => <strong className="font-semibold">{children}</str
 
 export default function RulesPage() {
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-3 max-w-[1400px] mx-auto">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <BookOpen className="w-6 h-6 text-[hsl(217,72%,40%)]" />
