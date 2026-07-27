@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  LayoutDashboard, Trophy, Activity, MessageSquare,
+  LayoutDashboard, Trophy, Activity, MessageSquare, Swords,
   Users, User, Settings, LogOut, Bell, Menu, BookOpen, MessageCircleQuestion
 } from 'lucide-react';
 
@@ -122,8 +122,9 @@ export default function Layout() {
   };
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard, alert: pendingChallenges > 0, clearAlert: () => setPendingChallenges(0) },
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/ladder', label: 'Ladders', icon: Trophy },
+    { path: '/challenges', label: 'Challenges', icon: Swords, alert: pendingChallenges > 0, clearAlert: () => setPendingChallenges(0) },
     { path: '/matches', label: 'Matches', icon: Activity, alert: pendingScores > 0, clearAlert: () => setPendingScores(0) },
     { path: '/messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages, alert: unreadMessages > 0, clearAlert: () => setUnreadMessages(0) },
     { path: '/rules', label: 'Rules', icon: BookOpen },

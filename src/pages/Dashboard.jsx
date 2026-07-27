@@ -478,8 +478,9 @@ export default function Dashboard() {
         <div className="lg:col-span-1 space-y-4">
           {/* Challenges */}
           <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <h2 className="font-semibold text-sm text-foreground">Challenges</h2>
+              <Link to="/challenges" className="text-xs text-[hsl(142,50%,45%)] font-semibold hover:underline">View All</Link>
             </div>
             <div className="p-3 space-y-4">
               {/* Received */}
@@ -539,9 +540,9 @@ export default function Dashboard() {
 
               {/* Accepted */}
               <div>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Accepted Challenges</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Accepted Challenges (5 most recent)</p>
                 <div className="space-y-2">
-                  {acceptedChallenges.map((c) => {
+                  {acceptedChallenges.slice(0, 5).map((c) => {
                     const isChallenger = c.challenger_id === user?.id;
                     const otherUser = allUsers[isChallenger ? c.opponent_id : c.challenger_id];
                     return (

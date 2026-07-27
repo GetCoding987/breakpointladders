@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
-import { Settings, Trophy, Users, Activity, Plus, Edit, Trash2, AlertCircle, Send, RotateCcw } from 'lucide-react';
+import { Settings, Trophy, Users, Activity, Plus, Edit, Trash2, AlertCircle, Send, RotateCcw, ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +36,11 @@ export default function AdminPage() {
   const [removeError, setRemoveError] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [moveTarget, setMoveTarget] = useState(null);
+  const [moveDestination, setMoveDestination] = useState('');
+  const [moveKeepStats, setMoveKeepStats] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -153,6 +158,66 @@ export default function AdminPage() {
 
     setRemoving(false);
     setRemoveTarget(null);
+    if (selectedLadder) loadLadderData(selectedLadder);
+  };
+
+  const movePlayer = async () => {
+    if (!moveTarget || !moveDestination) return;
+    setMoving(true);
+    setMoveError('');
+
+    const sourceLadderId = moveTarget.ladder_id;
+    const sourceRank = moveTarget.rank;
+
+    // Place the player at the bottom of the destination ladder
+    const { data: destMems, error: destError } = await supabase
+      .from('ladder_memberships')
+      .select('id, rank')
+      .eq('ladder_id', moveDestination);
+    if (destError) {
+      setMoveError(destError.message);
+      setMoving(false);
+      return;
+    }
+    const newRank = (destMems || []).reduce((max, m) => Math.max(max, m.rank || 0), 0) + 1;
+
+    const payload = {
+      ladder_id: moveDestination,
+      rank: newRank,
+      status: 'active',
+    };
+    if (!moveKeepStats) {
+      payload.wins = 0;
+      payload.losses = 0;
+    }
+
+    const { error: updateError } = await supabase.from('ladder_memberships').update(payload).eq('id', moveTarget.id);
+    if (updateError) {
+      setMoveError(updateError.message);
+      setMoving(false);
+      return;
+    }
+
+    // Close the rank gap left behind on the source ladder
+    const { data: below } = await supabase
+      .from('ladder_memberships')
+      .select('id, rank')
+      .eq('ladder_id', sourceLadderId)
+      .gt('rank', sourceRank);
+    if (below?.length > 0) {
+      const { error: shiftError } = await supabase.rpc('update_ladder_ranks', {
+        p_ladder_id: sourceLadderId,
+        updates: below.map(m => ({ id: m.id, rank: m.rank - 1 })),
+      });
+      if (shiftError) {
+        alert(`Player moved, but source ladder ranks failed to shift: ${shiftError.message}`);
+      }
+    }
+
+    setMoving(false);
+    setMoveTarget(null);
+    setMoveDestination('');
+    setMoveKeepStats(false);
     if (selectedLadder) loadLadderData(selectedLadder);
   };
 
@@ -425,6 +490,14 @@ export default function AdminPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => { setMoveTarget(mem); setMoveDestination(''); setMoveKeepStats(false); setMoveError(''); }}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <ArrowRightLeft className="w-3 h-3" /> Move
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => { setRemoveTarget(mem); setRemoveError(''); }}
                         className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 gap-1"
                       >
@@ -638,6 +711,75 @@ export default function AdminPage() {
               >
                 <Trash2 className="w-4 h-4" />
                 {removing ? 'Removing...' : 'Remove Player'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Move player dialog */}
+      <Dialog open={!!moveTarget} onOpenChange={(open) => !open && setMoveTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Move Player to a Different Ladder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              Move <strong>{getDisplayName(allUsers[moveTarget?.user_id])}</strong> from <strong>{selectedLadder?.name}</strong> to another ladder.
+            </p>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Destination Ladder</label>
+              <Select value={moveDestination} onValueChange={setMoveDestination}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a ladder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ladders.filter(l => l.status === 'active' && l.id !== selectedLadder?.id).map(l => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Stats</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={!moveKeepStats ? 'default' : 'outline'}
+                  onClick={() => setMoveKeepStats(false)}
+                  className={!moveKeepStats ? 'bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] flex-1' : 'flex-1'}
+                >
+                  Reset stats
+                </Button>
+                <Button
+                  type="button"
+                  variant={moveKeepStats ? 'default' : 'outline'}
+                  onClick={() => setMoveKeepStats(true)}
+                  className={moveKeepStats ? 'bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] flex-1' : 'flex-1'}
+                >
+                  Carry stats over
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {moveKeepStats
+                  ? "Win-loss record carries over to the new ladder."
+                  : "Win-loss record resets to 0-0 in the new ladder."}
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              The player will be placed at the bottom of the destination ladder and their rank on {selectedLadder?.name} will shift to fill the gap.
+            </p>
+            {moveError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{moveError}</p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setMoveTarget(null)}>Cancel</Button>
+              <Button
+                onClick={movePlayer}
+                disabled={!moveDestination || moving}
+                className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                {moving ? 'Moving...' : 'Move Player'}
               </Button>
             </div>
           </div>
