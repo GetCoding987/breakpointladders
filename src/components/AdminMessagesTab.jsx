@@ -145,10 +145,12 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   };
 
   const loadThreads = async () => {
-    const [{ data: sent }, { data: received }] = await Promise.all([
+    const [{ data: sent }, { data: received }, { data: hidden }] = await Promise.all([
       supabase.from('messages').select('*').match({ sender_id: user.id }),
       supabase.from('messages').select('*').match({ recipient_id: user.id }),
+      supabase.from('hidden_threads').select('*').match({ user_id: user.id }),
     ]);
+    const hiddenMap = Object.fromEntries((hidden || []).map(h => [h.other_user_id, h.hidden_at]));
 
     const allMsgs = [...(sent || []), ...(received || [])];
     const threadMap = {};
@@ -158,12 +160,17 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
       threadMap[otherId].push(msg);
     });
 
-    const threadList = Object.entries(threadMap).map(([otherId, msgs]) => ({
-      otherId,
-      messages: msgs.sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date)),
-      lastMessage: msgs.sort((a, b) => parseDateUTC(b.created_date) - parseDateUTC(a.created_date))[0],
-      unreadCount: msgs.filter(m => m.recipient_id === user.id && !m.read).length,
-    }));
+    const threadList = Object.entries(threadMap)
+      .map(([otherId, msgs]) => ({
+        otherId,
+        messages: msgs.sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date)),
+        lastMessage: msgs.sort((a, b) => parseDateUTC(b.created_date) - parseDateUTC(a.created_date))[0],
+        unreadCount: msgs.filter(m => m.recipient_id === user.id && !m.read).length,
+      }))
+      .filter(t => {
+        const hiddenAt = hiddenMap[t.otherId];
+        return !hiddenAt || parseDateUTC(t.lastMessage?.created_date) > parseDateUTC(hiddenAt);
+      });
 
     setThreads(threadList);
   };
@@ -182,24 +189,55 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
       supabase.from('conversation_messages').select('*').in('conversation_id', convoIds),
     ]);
 
-    const groupList = (convos || []).map(c => {
-      const participantIds = (allParticipants || [])
-        .filter(p => p.conversation_id === c.id)
-        .map(p => p.user_id)
-        .filter(id => id !== user.id);
-      const messages = (msgs || [])
-        .filter(m => m.conversation_id === c.id)
-        .sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date));
-      return {
-        id: c.id,
-        name: c.name,
-        participantIds,
-        messages,
-        lastMessage: messages[messages.length - 1] || null,
-      };
-    });
+    const myHiddenAtByConvo = Object.fromEntries(
+      (allParticipants || []).filter(p => p.user_id === user.id).map(p => [p.conversation_id, p.hidden_at])
+    );
+
+    const groupList = (convos || [])
+      .map(c => {
+        const participantIds = (allParticipants || [])
+          .filter(p => p.conversation_id === c.id)
+          .map(p => p.user_id)
+          .filter(id => id !== user.id);
+        const messages = (msgs || [])
+          .filter(m => m.conversation_id === c.id)
+          .sort((a, b) => parseDateUTC(a.created_date) - parseDateUTC(b.created_date));
+        return {
+          id: c.id,
+          name: c.name,
+          participantIds,
+          messages,
+          lastMessage: messages[messages.length - 1] || null,
+          hiddenAt: myHiddenAtByConvo[c.id] || null,
+        };
+      })
+      .filter(g => !g.hiddenAt || parseDateUTC(g.lastMessage?.created_date) > parseDateUTC(g.hiddenAt));
 
     setGroups(groupList);
+  };
+
+  const hideThread = async (otherId, e) => {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this conversation? It will reappear if they message you again.')) return;
+    const hiddenAt = new Date().toISOString();
+    await supabase.from('hidden_threads').upsert({ user_id: user.id, other_user_id: otherId, hidden_at: hiddenAt });
+    setThreads(prev => prev.filter(t => t.otherId !== otherId));
+    if (selected?.type === 'dm' && selected.key === otherId) {
+      setSelected(null);
+      setThreadMessages([]);
+    }
+  };
+
+  const hideGroup = async (groupId, e) => {
+    e?.stopPropagation();
+    if (!window.confirm('Delete this conversation? It will reappear if there is new activity.')) return;
+    const hiddenAt = new Date().toISOString();
+    await supabase.from('conversation_participants').update({ hidden_at: hiddenAt }).match({ conversation_id: groupId, user_id: user.id });
+    setGroups(prev => prev.filter(g => g.id !== groupId));
+    if (selected?.type === 'group' && selected.key === groupId) {
+      setSelected(null);
+      setThreadMessages([]);
+    }
   };
 
   const openThread = async (thread) => {
@@ -485,37 +523,48 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
                 const isGroup = t.type === 'group';
                 const name = isGroup ? getGroupName(t.raw) : getDisplayName(getOther(t.key));
                 return (
-                  <button
+                  <div
                     key={`${t.type}-${t.key}`}
-                    onClick={() => isGroup ? openGroup(t.raw) : openThread(t.raw)}
-                    className={`w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors text-left ${isSelected ? 'bg-blue-50' : ''}`}
+                    className={`group relative w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors ${isSelected ? 'bg-blue-50' : ''}`}
                   >
-                    {isGroup ? (
-                      <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Users className="w-4 h-4 text-white" />
+                    <button
+                      onClick={() => isGroup ? openGroup(t.raw) : openThread(t.raw)}
+                      className="flex-1 flex items-center gap-3 min-w-0 text-left"
+                    >
+                      {isGroup ? (
+                        <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <Users className="w-4 h-4 text-white" />
+                        </div>
+                      ) : (
+                        <PlayerAvatar user={getOther(t.key)} size="sm" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-sm truncate">{name}</p>
+                          {t.lastMessage?.created_date && (
+                            <p className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                              {formatEasternDate(t.lastMessage.created_date)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate">{t.lastMessage?.content}</p>
+                          {t.unreadCount > 0 && (
+                            <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                              {t.unreadCount}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <PlayerAvatar user={getOther(t.key)} size="sm" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-sm truncate">{name}</p>
-                        {t.lastMessage?.created_date && (
-                          <p className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                            {formatEasternDate(t.lastMessage.created_date)}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-xs text-muted-foreground truncate">{t.lastMessage?.content}</p>
-                        {t.unreadCount > 0 && (
-                          <span className="ml-2 flex-shrink-0 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                            {t.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      onClick={(e) => isGroup ? hideGroup(t.key, e) : hideThread(t.key, e)}
+                      title="Delete conversation"
+                      className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 );
               })}
               {filteredUnifiedThreads.length === 0 && (
