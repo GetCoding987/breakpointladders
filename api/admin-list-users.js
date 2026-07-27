@@ -34,12 +34,12 @@ export default async function handler(req, res) {
 		}
 
 		const { data: memberships } = await supabaseAdmin.from('ladder_memberships').select('user_id, ladder_id, status');
-		const { data: ladders } = await supabaseAdmin.from('ladders').select('id, name');
+		const { data: ladders } = await supabaseAdmin.from('ladders').select('id, name, status');
 		const ladderNameById = Object.fromEntries((ladders || []).map(l => [l.id, l.name]));
 		const membershipsByUser = {};
 		(memberships || []).forEach(m => {
 			if (!membershipsByUser[m.user_id]) membershipsByUser[m.user_id] = [];
-			membershipsByUser[m.user_id].push({ ladder_name: ladderNameById[m.ladder_id] || 'Unknown Ladder', status: m.status });
+			membershipsByUser[m.user_id].push({ ladder_id: m.ladder_id, ladder_name: ladderNameById[m.ladder_id] || 'Unknown Ladder', status: m.status });
 		});
 
 		const users = (profiles || []).map(p => ({

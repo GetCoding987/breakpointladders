@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, callApi } from '@/lib/supabaseClient';
-import { Search, Users as UsersIcon, Pencil, Trash2, Phone, User } from 'lucide-react';
+import { Search, Users as UsersIcon, Pencil, Trash2, Phone, User, Trophy, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,14 +28,23 @@ export default function AdminUsersTab({ currentUserId }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const [ladders, setLadders] = useState([]);
+  const [addLadderId, setAddLadderId] = useState('');
+  const [addingLadder, setAddingLadder] = useState(false);
+  const [addLadderError, setAddLadderError] = useState('');
+
   useEffect(() => { load(); }, []);
 
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const { users: fetched } = await callApi('/api/admin-list-users', {});
+      const [{ users: fetched }, { data: allLadders }] = await Promise.all([
+        callApi('/api/admin-list-users', {}),
+        supabase.from('ladders').select('*').match({ status: 'active' }),
+      ]);
       setUsers((fetched || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setLadders(allLadders || []);
     } catch (err) {
       setError(err.message || 'Failed to load users');
     } finally {
@@ -55,6 +64,8 @@ export default function AdminUsersTab({ currentUserId }) {
       role: u.role || 'player',
     });
     setFormError('');
+    setAddLadderId('');
+    setAddLadderError('');
   };
 
   const saveEdit = async () => {
@@ -106,6 +117,27 @@ export default function AdminUsersTab({ currentUserId }) {
     } : u));
     setSaving(false);
     setEditTarget(null);
+  };
+
+  const addToLadder = async () => {
+    if (!editTarget || !addLadderId) return;
+    setAddingLadder(true);
+    setAddLadderError('');
+    try {
+      const { membership } = await callApi('/api/admin-add-to-ladder', {
+        target_user_id: editTarget.id,
+        ladder_id: addLadderId,
+      });
+      const ladderName = ladders.find(l => l.id === addLadderId)?.name || 'Unknown Ladder';
+      const updatedLadders = [...editTarget.ladders, { ladder_id: addLadderId, ladder_name: ladderName, status: membership.status }];
+      setEditTarget(prev => ({ ...prev, ladders: updatedLadders }));
+      setUsers(prev => prev.map(u => u.id === editTarget.id ? { ...u, ladders: updatedLadders } : u));
+      setAddLadderId('');
+    } catch (err) {
+      setAddLadderError(err.message || 'Failed to add to ladder');
+    } finally {
+      setAddingLadder(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -269,6 +301,44 @@ export default function AdminUsersTab({ currentUserId }) {
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="border-t border-border pt-3">
+              <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5 text-muted-foreground" />
+                Ladders
+              </label>
+              {editTarget?.ladders.length > 0 ? (
+                <ul className="space-y-1 mb-3">
+                  {editTarget.ladders.map((l, i) => (
+                    <li key={i} className="text-sm flex items-center justify-between px-3 py-1.5 bg-muted/40 rounded-lg">
+                      <span>{l.ladder_name}</span>
+                      <span className="text-xs text-muted-foreground capitalize">{l.status?.replace('_', ' ')}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground mb-3">Not on any ladder yet.</p>
+              )}
+              {addLadderError && <p className="text-sm text-red-600 mb-2">{addLadderError}</p>}
+              <div className="flex gap-2">
+                <Select value={addLadderId} onValueChange={setAddLadderId}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select a ladder to add" /></SelectTrigger>
+                  <SelectContent>
+                    {ladders.filter(l => !editTarget?.ladders.some(m => m.ladder_id === l.id)).map(l => (
+                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={addToLadder}
+                  disabled={!addLadderId || addingLadder}
+                  className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-1.5 flex-shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  {addingLadder ? 'Adding...' : 'Add'}
+                </Button>
+              </div>
             </div>
 
             <div className="flex gap-3 justify-end pt-2">
