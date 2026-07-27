@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase, getCurrentUser, callApi } from '@/lib/supabaseClient';
 import { CreditCard, Trophy, CheckCircle, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isNtrpEligible } from '@/utils/ntrpEligibility';
 
 export default function JoinLadder() {
   const [user, setUser] = useState(null);
@@ -14,6 +15,7 @@ export default function JoinLadder() {
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
   const [promoSuccess, setPromoSuccess] = useState('');
+  const [eligibilityError, setEligibilityError] = useState('');
   const [processing, setProcessing] = useState(false);
   const navigate = useNavigate();
 
@@ -62,6 +64,11 @@ export default function JoinLadder() {
   };
 
   const handleJoin = () => {
+    if (selectedLadder && !isNtrpEligible(user?.ntrp_rating, selectedLadder.ntrp_min, selectedLadder.ntrp_max)) {
+      setEligibilityError(`Your NTRP rating doesn't qualify you for this ladder.`);
+      return;
+    }
+    setEligibilityError('');
     if (promoCode.trim()) {
       handlePromoRedemption();
     } else {
@@ -120,27 +127,39 @@ export default function JoinLadder() {
 
         {/* Ladder selection */}
         <div className="space-y-3 mb-6">
-          {ladders.map(ladder => (
-            <button
-              key={ladder.id}
-              onClick={() => setSelectedLadder(ladder)}
-              className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
-                selectedLadder?.id === ladder.id
-                  ? 'border-[hsl(217,72%,40%)] bg-blue-50'
-                  : 'border-border bg-white hover:border-[hsl(217,72%,40%)]/50'
-              }`}
-            >
-              <Trophy className={`w-8 h-8 ${selectedLadder?.id === ladder.id ? 'text-[hsl(217,72%,40%)]' : 'text-muted-foreground'}`} />
-              <div className="flex-1">
-                <p className="font-bold">{ladder.name}</p>
-                {ladder.description && <p className="text-sm text-muted-foreground">{ladder.description}</p>}
-                <p className="text-sm font-semibold text-green-600 mt-1">${ladder.annual_fee}/season</p>
-              </div>
-              {selectedLadder?.id === ladder.id && (
-                <CheckCircle className="w-6 h-6 text-[hsl(217,72%,40%)]" />
-              )}
-            </button>
-          ))}
+          {ladders.map(ladder => {
+            const eligible = isNtrpEligible(user?.ntrp_rating, ladder.ntrp_min, ladder.ntrp_max);
+            const rangeLabel = ladder.ntrp_min != null || ladder.ntrp_max != null
+              ? `Requires NTRP ${ladder.ntrp_min != null ? Number(ladder.ntrp_min).toFixed(1) : 'any'}${ladder.ntrp_max != null ? `–${Number(ladder.ntrp_max).toFixed(1)}` : '+'}`
+              : null;
+            return (
+              <button
+                key={ladder.id}
+                onClick={() => eligible && setSelectedLadder(ladder)}
+                disabled={!eligible}
+                className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
+                  !eligible
+                    ? 'border-border bg-muted/30 opacity-60 cursor-not-allowed'
+                    : selectedLadder?.id === ladder.id
+                      ? 'border-[hsl(217,72%,40%)] bg-blue-50'
+                      : 'border-border bg-white hover:border-[hsl(217,72%,40%)]/50'
+                }`}
+              >
+                <Trophy className={`w-8 h-8 ${selectedLadder?.id === ladder.id && eligible ? 'text-[hsl(217,72%,40%)]' : 'text-muted-foreground'}`} />
+                <div className="flex-1">
+                  <p className="font-bold">{ladder.name}</p>
+                  {ladder.description && <p className="text-sm text-muted-foreground">{ladder.description}</p>}
+                  <p className="text-sm font-semibold text-green-600 mt-1">${ladder.annual_fee}/season</p>
+                  {rangeLabel && (
+                    <p className={`text-xs mt-1 ${eligible ? 'text-muted-foreground' : 'text-red-600 font-medium'}`}>{rangeLabel}</p>
+                  )}
+                </div>
+                {selectedLadder?.id === ladder.id && eligible && (
+                  <CheckCircle className="w-6 h-6 text-[hsl(217,72%,40%)]" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {selectedLadder && (
@@ -206,9 +225,12 @@ export default function JoinLadder() {
           )}
         </div>
 
+        {eligibilityError && (
+          <p className="text-xs text-red-600 text-center mb-2">{eligibilityError}</p>
+        )}
         <Button
           onClick={handleJoin}
-          disabled={!selectedLadder || !agreedToRules || processing}
+          disabled={!selectedLadder || !agreedToRules || processing || (!!selectedLadder && !isNtrpEligible(user?.ntrp_rating, selectedLadder.ntrp_min, selectedLadder.ntrp_max))}
           className="w-full bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] h-12 text-base gap-2"
         >
           <CreditCard className="w-5 h-5" />

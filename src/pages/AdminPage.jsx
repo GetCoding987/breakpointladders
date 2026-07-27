@@ -15,6 +15,7 @@ import AdminMessagesTab from '@/components/AdminMessagesTab';
 import AdminPromoCodesTab from '@/components/AdminPromoCodesTab';
 import AdminUsersTab from '@/components/AdminUsersTab';
 import { getDisplayName } from '@/utils/userHelpers';
+import { NTRP_VALUES } from '@/components/NtrpRatingField';
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -25,7 +26,7 @@ export default function AdminPage() {
   const [matches, setMatches] = useState([]);
   const [challenges, setChallenges] = useState([]);
   const [showLadderForm, setShowLadderForm] = useState(false);
-  const [ladderForm, setLadderForm] = useState({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10 });
+  const [ladderForm, setLadderForm] = useState({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10, ntrp_min: '', ntrp_max: '' });
   const [editingLadder, setEditingLadder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -89,14 +90,19 @@ export default function AdminPage() {
   };
 
   const saveLadder = async () => {
+    const payload = {
+      ...ladderForm,
+      ntrp_min: ladderForm.ntrp_min === '' ? null : parseFloat(ladderForm.ntrp_min),
+      ntrp_max: ladderForm.ntrp_max === '' ? null : parseFloat(ladderForm.ntrp_max),
+    };
     if (editingLadder) {
-      await supabase.from('ladders').update(ladderForm).eq('id', editingLadder.id);
+      await supabase.from('ladders').update(payload).eq('id', editingLadder.id);
     } else {
-      await supabase.from('ladders').insert({ ...ladderForm, status: 'active' });
+      await supabase.from('ladders').insert({ ...payload, status: 'active' });
     }
     setShowLadderForm(false);
     setEditingLadder(null);
-    setLadderForm({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10 });
+    setLadderForm({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10, ntrp_min: '', ntrp_max: '' });
     load();
   };
 
@@ -377,7 +383,7 @@ export default function AdminPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-lg">All Ladders</h2>
             <Button
-              onClick={() => { setEditingLadder(null); setLadderForm({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10 }); setShowLadderForm(true); }}
+              onClick={() => { setEditingLadder(null); setLadderForm({ name: '', description: '', annual_fee: 25, challenge_window_spots: 10, ntrp_min: '', ntrp_max: '' }); setShowLadderForm(true); }}
               className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)] gap-2"
             >
               <Plus className="w-4 h-4" /> New Ladder
@@ -396,14 +402,17 @@ export default function AdminPage() {
                   </div>
                   {ladder.description && <p className="text-sm text-muted-foreground">{ladder.description}</p>}
                   <p className="text-xs text-muted-foreground mt-1">
-                    ${ladder.annual_fee}/season · Challenge window: ±{ladder.challenge_window_spots} spots
+                    ${ladder.annual_fee}/season · Challenge window: ±{ladder.challenge_window_spots} spots ·{' '}
+                    {ladder.ntrp_min == null && ladder.ntrp_max == null
+                      ? 'No NTRP restriction set'
+                      : `NTRP ${ladder.ntrp_min != null ? Number(ladder.ntrp_min).toFixed(1) : 'any'}${ladder.ntrp_max != null ? `–${Number(ladder.ntrp_max).toFixed(1)}` : '+'}`}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => { setEditingLadder(ladder); setLadderForm({ name: ladder.name, description: ladder.description || '', annual_fee: ladder.annual_fee, challenge_window_spots: ladder.challenge_window_spots || 10 }); setShowLadderForm(true); }}
+                    onClick={() => { setEditingLadder(ladder); setLadderForm({ name: ladder.name, description: ladder.description || '', annual_fee: ladder.annual_fee, challenge_window_spots: ladder.challenge_window_spots || 10, ntrp_min: ladder.ntrp_min != null ? String(ladder.ntrp_min) : '', ntrp_max: ladder.ntrp_max != null ? String(ladder.ntrp_max) : '' }); setShowLadderForm(true); }}
                     className="h-8 text-xs"
                   >
                     <Edit className="w-3 h-3" />
@@ -643,6 +652,39 @@ export default function AdminPage() {
                 <Input type="number" value={ladderForm.challenge_window_spots} onChange={e => setLadderForm(f => ({ ...f, challenge_window_spots: parseInt(e.target.value) }))} />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Min NTRP</label>
+                <Select value={ladderForm.ntrp_min} onValueChange={val => setLadderForm(f => ({ ...f, ntrp_min: val === 'none' ? '' : val }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No minimum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No minimum</SelectItem>
+                    {NTRP_VALUES.map(v => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Max NTRP</label>
+                <Select value={ladderForm.ntrp_max} onValueChange={val => setLadderForm(f => ({ ...f, ntrp_max: val === 'none' ? '' : val }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No upper limit (X.X+)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No upper limit ({ladderForm.ntrp_min || 'X.X'}+)</SelectItem>
+                    {NTRP_VALUES.map(v => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Players can only join a ladder if their NTRP self-rating falls within this range. Leave both blank for no restriction.
+            </p>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setShowLadderForm(false)}>Cancel</Button>
               <Button onClick={saveLadder} disabled={!ladderForm.name} className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)]">

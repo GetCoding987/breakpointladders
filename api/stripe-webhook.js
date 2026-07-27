@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { supabaseAdmin } from '../lib/supabaseAdmin.js';
 import { getSeasonExpiryString } from '../lib/seasonExpiry.js';
 import { computeInitialRankAndShift } from '../lib/ladderPlacement.js';
+import { isNtrpEligible } from '../lib/ntrpEligibility.js';
 
 // Signature verification requires the exact raw request bytes, so
 // automatic body parsing must be disabled for this route.
@@ -55,6 +56,27 @@ export default async function handler(req, res) {
 				.select('ntrp_rating')
 				.eq('id', metadata.user_id)
 				.single();
+
+			// Defensive last-resort guard: payment has already been captured by
+			// this point, so this should be unreachable in normal operation
+			// (create-checkout-session rejects ineligible joins before Stripe is
+			// ever involved). If it somehow fires, skip membership creation
+			// rather than silently enrolling an ineligible player — this needs
+			// manual follow-up (refund/support), logged here for that purpose.
+			const { data: ladder } = await supabaseAdmin
+				.from('ladders')
+				.select('ntrp_min, ntrp_max')
+				.eq('id', metadata.ladder_id)
+				.single();
+			if (!isNtrpEligible(rater?.ntrp_rating, ladder?.ntrp_min, ladder?.ntrp_max)) {
+				console.error('stripe-webhook: NTRP-ineligible checkout completed, membership NOT created — needs manual follow-up', {
+					user_id: metadata.user_id,
+					ladder_id: metadata.ladder_id,
+					session_id: session.id,
+				});
+				return res.status(200).json({ received: true, message: 'NTRP-ineligible, membership not created' });
+			}
+
 			const rank = await computeInitialRankAndShift(supabaseAdmin, metadata.ladder_id, rater?.ntrp_rating ?? null);
 
 			await supabaseAdmin.from('ladder_memberships').insert({

@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { supabaseAdmin, getUserFromRequest } from '../lib/supabaseAdmin.js';
 import { findPromoCode } from '../lib/stripePromo.js';
+import { isNtrpEligible } from '../lib/ntrpEligibility.js';
 
 const DEFAULT_ORIGIN = process.env.APP_BASE_URL || 'https://breakpoint-ladders.vercel.app';
 
@@ -53,6 +54,16 @@ export default async function handler(req, res) {
 			return res.status(404).json({ error: 'Ladder not found' });
 		}
 
+		const { data: profile } = await supabaseAdmin
+			.from('profiles')
+			.select('full_name, avatar_url, ntrp_rating')
+			.eq('id', user.id)
+			.single();
+
+		if (!isNtrpEligible(profile?.ntrp_rating, ladder.ntrp_min, ladder.ntrp_max)) {
+			return res.status(400).json({ error: "Your NTRP rating doesn't qualify you for this ladder." });
+		}
+
 		let discount_percent = 0;
 		if (promo_code) {
 			const match = await findPromoCode(supabaseAdmin, promo_code);
@@ -61,12 +72,6 @@ export default async function handler(req, res) {
 			}
 		}
 		const unit_amount = Math.round(ladder.annual_fee * 100 * (1 - discount_percent / 100));
-
-		const { data: profile } = await supabaseAdmin
-			.from('profiles')
-			.select('full_name, avatar_url')
-			.eq('id', user.id)
-			.single();
 
 		const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 		const session = await stripe.checkout.sessions.create({

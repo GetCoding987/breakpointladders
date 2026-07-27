@@ -2,6 +2,7 @@ import { supabaseAdmin, getUserFromRequest } from '../lib/supabaseAdmin.js';
 import { findPromoCode } from '../lib/stripePromo.js';
 import { getSeasonExpiryString } from '../lib/seasonExpiry.js';
 import { computeInitialRankAndShift } from '../lib/ladderPlacement.js';
+import { isNtrpEligible } from '../lib/ntrpEligibility.js';
 
 export default async function handler(req, res) {
 	if (req.method !== 'POST') {
@@ -36,11 +37,21 @@ export default async function handler(req, res) {
 			return res.status(400).json({ error: 'Already a member of this ladder' });
 		}
 
+		const { data: ladder } = await supabaseAdmin
+			.from('ladders')
+			.select('ntrp_min, ntrp_max')
+			.eq('id', ladder_id)
+			.single();
+
 		const { data: profile } = await supabaseAdmin
 			.from('profiles')
 			.select('full_name, avatar_url, ntrp_rating')
 			.eq('id', user.id)
 			.single();
+
+		if (!isNtrpEligible(profile?.ntrp_rating, ladder?.ntrp_min, ladder?.ntrp_max)) {
+			return res.status(400).json({ error: "Your NTRP rating doesn't qualify you for this ladder." });
+		}
 
 		const rank = await computeInitialRankAndShift(supabaseAdmin, ladder_id, profile?.ntrp_rating ?? null);
 
