@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, callApi } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getDisplayName } from '@/utils/userHelpers';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   LayoutDashboard, Trophy, Activity, MessageSquare,
-  Users, User, Settings, LogOut, Bell, Menu, BookOpen
+  Users, User, Settings, LogOut, Bell, Menu, BookOpen, MessageCircleQuestion
 } from 'lucide-react';
 
 export default function Layout() {
@@ -15,6 +18,9 @@ export default function Layout() {
   const [pendingChallenges, setPendingChallenges] = useState(0);
   const [pendingScores, setPendingScores] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showContactAdmin, setShowContactAdmin] = useState(false);
+  const [contactMsg, setContactMsg] = useState('');
+  const [sendingContact, setSendingContact] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -74,6 +80,46 @@ export default function Layout() {
   const handleLogout = () => { logout(); };
   const isAdmin = user?.role === 'admin';
   const displayName = getDisplayName(user);
+
+  const sendToAdmins = async () => {
+    if (!contactMsg.trim() || !user) return;
+    setSendingContact(true);
+    try {
+      const { data: admins } = await supabase.from('profiles').select('id, first_name, last_name, full_name').eq('role', 'admin');
+      const adminIds = (admins || []).map(a => a.id).filter(id => id !== user.id);
+
+      await Promise.all(adminIds.map(adminId =>
+        supabase.from('messages').insert({
+          sender_id: user.id,
+          recipient_id: adminId,
+          content: contactMsg.trim(),
+          read: false,
+          thread_id: [user.id, adminId].sort().join('_'),
+        })
+      ));
+
+      if (adminIds.length > 0) {
+        try {
+          await callApi('/api/notify', {
+            notifications: adminIds.map(adminId => ({
+              user_id: adminId,
+              type: 'new_message',
+              title: 'New message from a player',
+              body: `${getDisplayName(user)}: ${contactMsg.trim()}`,
+              related_id: user.id,
+            })),
+          });
+        } catch (err) {
+          console.warn('Failed to notify admins:', err?.message);
+        }
+      }
+
+      setShowContactAdmin(false);
+      setContactMsg('');
+    } finally {
+      setSendingContact(false);
+    }
+  };
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard, alert: pendingChallenges > 0, clearAlert: () => setPendingChallenges(0) },
@@ -211,6 +257,44 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Contact Admin floating button */}
+      {!isAdmin && (
+        <button
+          onClick={() => setShowContactAdmin(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-[hsl(217,72%,16%)] text-white shadow-lg hover:bg-[hsl(217,72%,22%)] transition-colors"
+        >
+          <MessageCircleQuestion className="w-5 h-5" />
+          <span className="text-sm font-semibold hidden sm:inline">Contact Admin</span>
+        </button>
+      )}
+
+      <Dialog open={showContactAdmin} onOpenChange={(open) => { setShowContactAdmin(open); if (!open) setContactMsg(''); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Contact Admin</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              Send a message to the ladder admins. They'll be notified by email and can reply to you directly.
+            </p>
+            <Textarea
+              placeholder="How can we help?"
+              value={contactMsg}
+              onChange={(e) => setContactMsg(e.target.value)}
+              rows={4}
+            />
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setShowContactAdmin(false)}>Cancel</Button>
+              <Button
+                onClick={sendToAdmins}
+                disabled={!contactMsg.trim() || sendingContact}
+                className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)]"
+              >
+                {sendingContact ? 'Sending...' : 'Send'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

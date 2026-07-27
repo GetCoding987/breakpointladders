@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [eligiblePlayers, setEligiblePlayers] = useState([]);
   const [recentMatches, setRecentMatches] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [playerMessages, setPlayerMessages] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [allUsers, setAllUsers] = useState({});
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,18 @@ export default function Dashboard() {
 
     const { data: memberships } = await supabase.from('ladder_memberships').select('*').match({ user_id: u.id });
     if (!memberships || memberships.length === 0) {
+      // Admins without a ladder membership still need their Player Messages card loaded
+      if (u.role === 'admin') {
+        const { data: adminMsgs } = await supabase.from('messages').select('*').match({ recipient_id: u.id });
+        const senderIds = [...new Set((adminMsgs || []).map((m) => m.sender_id))];
+        if (senderIds.length > 0) {
+          const { data: senderProfiles } = await supabase.from('profiles').select('id, first_name, last_name, full_name, avatar_url').in('id', senderIds);
+          const senderMap = {};
+          (senderProfiles || []).forEach((p) => { senderMap[p.id] = p; });
+          setAllUsers((prev) => ({ ...prev, ...senderMap }));
+        }
+        setPlayerMessages((adminMsgs || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 5));
+      }
       setLoading(false);
       return;
     }
@@ -135,6 +148,19 @@ export default function Dashboard() {
     // Recent messages
     const { data: msgs } = await supabase.from('messages').select('*').match({ recipient_id: u.id });
     setMessages((msgs || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 3));
+
+    // Admin-only: recent messages sent in from players via the "Contact Admin" button
+    if (u.role === 'admin') {
+      const { data: adminMsgs } = await supabase.from('messages').select('*').match({ recipient_id: u.id });
+      const senderIds = [...new Set((adminMsgs || []).map((m) => m.sender_id))];
+      if (senderIds.length > 0) {
+        const { data: senderProfiles } = await supabase.from('profiles').select('id, first_name, last_name, full_name, avatar_url').in('id', senderIds);
+        const senderMap = {};
+        (senderProfiles || []).forEach((p) => { senderMap[p.id] = p; });
+        setAllUsers((prev) => ({ ...prev, ...senderMap }));
+      }
+      setPlayerMessages((adminMsgs || []).sort((a, b) => new Date(b.created_date) - new Date(a.created_date)).slice(0, 5));
+    }
 
     // Announcements
     const { data: anns } = await supabase.from('announcements').select('*').match({ ladder_id: mem.ladder_id });
@@ -286,7 +312,7 @@ export default function Dashboard() {
 
   }
 
-  if (!membership) {
+  if (!membership && user?.role !== 'admin') {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] text-center">
         <div className="text-6xl mb-4">🎾</div>
@@ -295,6 +321,48 @@ export default function Dashboard() {
         <Button asChild className="bg-[hsl(217,72%,16%)] hover:bg-[hsl(217,72%,22%)]">
           <Link to="/ladder">Browse Ladders</Link>
         </Button>
+      </div>);
+
+  }
+
+  if (!membership && user?.role === 'admin') {
+    return (
+      <div className="p-3 max-w-[1400px] mx-auto">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Welcome back, {getDisplayName(user)?.split(' ')[0]}!</p>
+        </div>
+        <div className="max-w-md">
+          <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <h2 className="font-semibold text-sm text-foreground">Player Messages</h2>
+              <Link to="/messages" className="text-xs text-[hsl(142,50%,45%)] font-semibold hover:underline">View All</Link>
+            </div>
+            <div className="divide-y divide-border">
+              {playerMessages.map((msg) => {
+                const sender = allUsers[msg.sender_id];
+                return (
+                  <Link key={msg.id} to={`/messages?new=${msg.sender_id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors">
+                    <PlayerAvatar user={sender} size="xs" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold truncate">{getDisplayName(sender)}</p>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {msg.created_date && <span className="text-[10px] text-muted-foreground">{formatEasternDate(msg.created_date)}</span>}
+                          {!msg.read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{msg.content}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+              {playerMessages.length === 0 &&
+              <div className="px-4 py-5 text-center text-xs text-muted-foreground">No player messages yet</div>
+              }
+            </div>
+          </div>
+        </div>
       </div>);
 
   }
@@ -540,6 +608,39 @@ export default function Dashboard() {
 
         {/* Right column — Profile + Messages */}
         <div className="lg:col-span-1 space-y-4">
+          {/* Admin-only: player messages sent via Contact Admin */}
+          {user?.role === 'admin' && (
+            <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <h2 className="font-semibold text-sm text-foreground">Player Messages</h2>
+                <Link to="/messages" className="text-xs text-[hsl(142,50%,45%)] font-semibold hover:underline">View All</Link>
+              </div>
+              <div className="divide-y divide-border">
+                {playerMessages.map((msg) => {
+                  const sender = allUsers[msg.sender_id];
+                  return (
+                    <Link key={msg.id} to={`/messages?new=${msg.sender_id}`} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors">
+                      <PlayerAvatar user={sender} size="xs" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold truncate">{getDisplayName(sender)}</p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {msg.created_date && <span className="text-[10px] text-muted-foreground">{formatEasternDate(msg.created_date)}</span>}
+                            {!msg.read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{msg.content}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+                {playerMessages.length === 0 &&
+                <div className="px-4 py-5 text-center text-xs text-muted-foreground">No player messages yet</div>
+                }
+              </div>
+            </div>
+          )}
+
           {/* Announcements */}
           <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
             <div className="px-4 py-3 border-b border-border">

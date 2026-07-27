@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 
 const Section = ({ title, children }) => {
@@ -31,7 +31,6 @@ export default function RulesPage() {
     <div className="p-3 max-w-[1400px] mx-auto">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-6 h-6 text-[hsl(217,72%,40%)]" />
           <h1 className="text-2xl font-bold">BreakPoint Ladders Official Rules</h1>
         </div>
         <p className="text-muted-foreground text-sm">
