@@ -13,6 +13,8 @@ import { formatEasternDateTime, formatEasternTime, formatEasternDate, parseDateU
 export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   const [ladderId, setLadderId] = useState(propLadderId || null);
   const [members, setMembers] = useState([]);
+  const [extraProfiles, setExtraProfiles] = useState({});
+  const [adminIds, setAdminIds] = useState(new Set());
   const [announcements, setAnnouncements] = useState([]);
 
   const [annTitle, setAnnTitle] = useState('');
@@ -52,6 +54,9 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
     if (user) {
       loadThreads();
       loadGroups();
+      supabase.from('profiles').select('id').eq('role', 'admin').then(({ data }) => {
+        setAdminIds(new Set((data || []).map(p => p.id)));
+      });
     }
   }, [user]);
 
@@ -60,6 +65,27 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' });
     }, 50);
   }, [threadMessages, selected]);
+
+  // Ladder-membership data only covers members of the currently-selected
+  // ladder — a thread/group counterpart (e.g. a player messaging via Contact
+  // Admin) may not be one. Backfill any unresolved id directly from profiles
+  // so names never fall through to "Unknown".
+  useEffect(() => {
+    const memberIds = new Set(members.map(m => m.user_id));
+    const needed = new Set();
+    threads.forEach(t => { if (!memberIds.has(t.otherId) && !extraProfiles[t.otherId]) needed.add(t.otherId); });
+    groups.forEach(g => g.participantIds.forEach(id => { if (!memberIds.has(id) && !extraProfiles[id]) needed.add(id); }));
+    if (needed.size === 0) return;
+    supabase.from('profiles').select('id, first_name, last_name, full_name, avatar_url, location').in('id', [...needed])
+      .then(({ data }) => {
+        if (!data?.length) return;
+        setExtraProfiles(prev => {
+          const next = { ...prev };
+          data.forEach(p => { next[p.id] = p; });
+          return next;
+        });
+      });
+  }, [threads, groups, members, extraProfiles]);
 
   const load = async () => {
     const { data: myMems } = await supabase.from('ladder_memberships').select('*').match({ user_id: user.id });
@@ -328,11 +354,20 @@ export default function AdminMessagesTab({ user, ladderId: propLadderId }) {
   members.forEach(m => { memberMap[m.user_id] = m; });
   const getOther = (otherId) => {
     const mem = memberMap[otherId];
-    return mem ? { id: otherId, full_name: mem.display_name, avatar_url: mem.avatar_url, location: mem.location } : { id: otherId };
+    if (mem) return { id: otherId, full_name: mem.display_name, avatar_url: mem.avatar_url, location: mem.location };
+    const profile = extraProfiles[otherId];
+    return profile || { id: otherId };
   };
 
   const getGroupName = (group) => {
     if (group.name) return group.name;
+    // A player's "Contact Admin" conversation has exactly one non-admin
+    // participant (the player) plus one or more admins — label it with the
+    // player's name rather than joining every admin's name in too.
+    const nonAdminIds = group.participantIds.filter(id => !adminIds.has(id));
+    if (nonAdminIds.length === 1 && nonAdminIds.length < group.participantIds.length) {
+      return getDisplayName(getOther(nonAdminIds[0]));
+    }
     const names = group.participantIds.map(id => getDisplayName(getOther(id)));
     return names.join(', ') || 'Group';
   };

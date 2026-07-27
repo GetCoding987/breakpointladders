@@ -85,20 +85,15 @@ export default function Layout() {
     if (!contactMsg.trim() || !user) return;
     setSendingContact(true);
     try {
-      const { data: admins } = await supabase.from('profiles').select('id, first_name, last_name, full_name').eq('role', 'admin');
-      const adminIds = (admins || []).map(a => a.id).filter(id => id !== user.id);
+      const { conversation_id: conversationId, admin_ids: adminIds } = await callApi('/api/get-or-create-admin-conversation', {});
 
-      await Promise.all(adminIds.map(adminId =>
-        supabase.from('messages').insert({
-          sender_id: user.id,
-          recipient_id: adminId,
-          content: contactMsg.trim(),
-          read: false,
-          thread_id: [user.id, adminId].sort().join('_'),
-        })
-      ));
+      await supabase.from('conversation_messages').insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content: contactMsg.trim(),
+      });
 
-      if (adminIds.length > 0) {
+      if (adminIds?.length > 0) {
         try {
           await callApi('/api/notify', {
             notifications: adminIds.map(adminId => ({
@@ -116,6 +111,8 @@ export default function Layout() {
 
       setShowContactAdmin(false);
       setContactMsg('');
+    } catch (err) {
+      console.error('Failed to send message to admins:', err?.message);
     } finally {
       setSendingContact(false);
     }

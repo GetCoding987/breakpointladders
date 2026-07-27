@@ -18,6 +18,7 @@ import { withRetry } from '@/utils/apiRetry';
 export default function MessagesPage() {
   const [user, setUser] = useState(null);
   const [allUsers, setAllUsers] = useState({});
+  const [adminIds, setAdminIds] = useState(new Set());
   const [threads, setThreads] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [threadMessages, setThreadMessages] = useState([]);
@@ -98,6 +99,7 @@ export default function MessagesPage() {
 
     setThreads(threadList);
 
+    let map = {};
     if (myMems?.length > 0) {
       const ladderId = myMems[0].ladder_id;
 
@@ -116,12 +118,10 @@ export default function MessagesPage() {
         : { data: [] };
       const profileLocationById = Object.fromEntries((memberProfiles || []).map(p => [p.id, p.location]));
 
-      const map = {};
       (allMems || []).forEach(m => {
         map[m.user_id] = { id: m.user_id, full_name: m.display_name, avatar_url: m.avatar_url, location: m.location || profileLocationById[m.user_id] };
       });
       map[u.id] = u;
-      setAllUsers(map);
 
       setDisputedMatches((allMatches || []).filter(m =>
         (m.player1_id === u.id || m.player2_id === u.id) && m.status === 'disputed'
@@ -130,10 +130,29 @@ export default function MessagesPage() {
       setAcceptedChallenges((allChallenges || []).filter(c =>
         (c.challenger_id === u.id || c.opponent_id === u.id) && c.status === 'accepted'
       ));
+    } else {
+      map[u.id] = u;
     }
 
-    await loadGroups(u);
+    const groupList = await loadGroups(u);
 
+    // Ladder-membership data doesn't cover everyone a thread/group can be
+    // with (e.g. admins, or players not on my ladder) — backfill any
+    // still-unresolved id directly from profiles so names never fall
+    // through to "Unknown".
+    const otherIdsNeeded = new Set();
+    threadList.forEach(t => { if (!map[t.otherId]) otherIdsNeeded.add(t.otherId); });
+    groupList.forEach(g => g.participantIds.forEach(id => { if (!map[id]) otherIdsNeeded.add(id); }));
+
+    const { data: adminProfiles } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    setAdminIds(new Set((adminProfiles || []).map(p => p.id)));
+
+    if (otherIdsNeeded.size > 0) {
+      const { data: extraProfiles } = await supabase.from('profiles').select('id, first_name, last_name, full_name, avatar_url, location').in('id', [...otherIdsNeeded]);
+      (extraProfiles || []).forEach(p => { map[p.id] = p; });
+    }
+
+    setAllUsers(map);
     setLoading(false);
   };
 
@@ -142,7 +161,7 @@ export default function MessagesPage() {
     const convoIds = (myParticipant || []).map(p => p.conversation_id);
     if (convoIds.length === 0) {
       setGroups([]);
-      return;
+      return [];
     }
 
     const [{ data: convos }, { data: allParticipants }, { data: msgs }] = await Promise.all([
@@ -169,6 +188,7 @@ export default function MessagesPage() {
     });
 
     setGroups(groupList);
+    return groupList;
   };
 
   const openGroupThread = (group) => {
@@ -209,7 +229,11 @@ export default function MessagesPage() {
     setSelectedGroup(prev => prev ? { ...prev, messages: updated, lastMessage: newMsg } : prev);
   };
 
+  const isAdminConversation = (group) =>
+    group.participantIds.length > 0 && group.participantIds.every(id => adminIds.has(id));
+
   const getGroupName = (group) => {
+    if (isAdminConversation(group)) return 'Admin Westchester';
     if (group.name) return group.name;
     const names = group.participantIds.map(id => getDisplayName(allUsers[id]));
     return names.join(', ') || 'Group';
@@ -637,12 +661,15 @@ export default function MessagesPage() {
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-background">
                   {groupMessages.map(msg => {
                     const isMe = msg.sender_id === user?.id;
+                    const senderLabel = selectedGroup && isAdminConversation(selectedGroup)
+                      ? 'Admin Westchester'
+                      : getDisplayName(allUsers[msg.sender_id]);
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
                           {!isMe && (
                             <p className="text-xs font-semibold text-muted-foreground px-1">
-                              {getDisplayName(allUsers[msg.sender_id])}
+                              {senderLabel}
                             </p>
                           )}
                           <div className={`px-4 py-3 rounded-2xl text-sm ${
